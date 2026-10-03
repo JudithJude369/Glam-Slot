@@ -49,8 +49,19 @@ const password = crypto.randomUUID();
 let ownerUserId = "";
 let strangerUserId = "";
 let previousOwnerEmail: string | null = null;
-let createdSalonSettings = false;
 let previousSalonSettings: Record<string, unknown> | null = null;
+
+const SETTINGS_COLUMNS = [
+  "name",
+  "address",
+  "whatsapp_phone",
+  "timezone",
+  "slot_interval_minutes",
+  "min_notice_hours",
+  "booking_window_days",
+  "cancel_cutoff_hours",
+  "hold_minutes",
+] as const;
 
 async function wipeSeed(): Promise<void> {
   await admin.from("bookings").delete().eq("service_id", SERVICE_ID);
@@ -298,22 +309,26 @@ async function run(): Promise<void> {
 
   const existingSettings = await admin
     .from("salon_settings")
-    .select("name")
+    .select("*")
     .maybeSingle();
   previousSalonSettings = existingSettings.data;
-  if (existingSettings.data) {
+  if (previousSalonSettings) {
+    const originalNotice = previousSalonSettings.min_notice_hours;
+    const bumped = originalNotice === 3 ? 4 : 3;
+    const ownerWrite = await owner
+      .from("salon_settings")
+      .update({ min_notice_hours: bumped })
+      .eq("id", 1);
     await admin
       .from("salon_settings")
-      .update({ min_notice_hours: 3 })
-      .eq("id", 1);
-    const wroteBack = await admin
-      .from("salon_settings")
-      .update({ min_notice_hours: 2 })
+      .update({ min_notice_hours: originalNotice })
       .eq("id", 1);
     record(
       "the owner updates salon_settings",
-      !wroteBack.error,
-      wroteBack.error ? wroteBack.error.message : "min_notice_hours updated and restored",
+      !ownerWrite.error,
+      ownerWrite.error
+        ? ownerWrite.error.message
+        : `min_notice_hours set to ${bumped} as the owner, put back to ${originalNotice}`,
     );
   } else {
     const created = await owner.from("salon_settings").insert({
@@ -321,7 +336,6 @@ async function run(): Promise<void> {
       address: "Verify Address",
       whatsapp_phone: "+2348031234567",
     });
-    createdSalonSettings = !created.error;
     record(
       "the owner inserts salon_settings",
       !created.error,
@@ -428,7 +442,13 @@ async function run(): Promise<void> {
 
 async function cleanup(): Promise<void> {
   await wipeSeed();
-  if (createdSalonSettings || previousSalonSettings) {
+  if (previousSalonSettings) {
+    const patch: Record<string, unknown> = {};
+    for (const column of SETTINGS_COLUMNS) {
+      patch[column] = previousSalonSettings[column];
+    }
+    await admin.from("salon_settings").update(patch).eq("id", 1);
+  } else {
     await admin.from("salon_settings").delete().eq("id", 1);
   }
   if (previousOwnerEmail) {
