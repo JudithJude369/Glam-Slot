@@ -18,7 +18,7 @@ Mark `[x]` only after the checks in `engineering-and-verification.md` have passe
 Use static sample content kept in one file (for example `lib/sample-content.ts`).
 No database yet. The "Book Now" button links to `/book`, which does not exist until Phase 5.
 
-- [ ] Landing page (build from `context/design/LandingPage/`)
+- [x] Landing page (build from `context/design/LandingPage/`)
 - [ ] About page (build from `context/design/AboutPage/`)
 - [ ] Both pages checked at 375px and on desktop
 
@@ -72,9 +72,9 @@ No database yet. The "Book Now" button links to `/book`, which does not exist un
 
 ## Current status
 
-- Phase: Phase 1 complete, Phase 2 next
-- Last completed task: Phase 1 item 4 — Playwright installed with one passing smoke test
-- Next task: Phase 2 — Landing page from `context/design/LandingPage/`, using sample content
+- Phase: Phase 1 complete, Phase 2 in progress (Landing done, About next)
+- Last completed task: Phase 2 — Landing page from `context/design/LandingPage/spec.md`
+- Next task: Phase 2 — About page from `context/design/AboutPage/`, reusing `lib/sample-content.ts`
 
 ## Decisions log
 
@@ -98,19 +98,41 @@ Add one line per decision: date, decision, reason.
 - 2026-10-03: the Playwright `webServer` command is `npm run build && npm run start`, not `npm run dev`. Reason: the Next.js guide in `node_modules/next/dist/docs/01-app/02-guides/testing/playwright.md` recommends testing against production code, and building first means a stale `.next` can never give a false pass. `reuseExistingServer` is on, so a server already running in development is reused instead.
 - 2026-10-03: the smoke test asserts the `h1` is visible, not its text. Reason: Phase 2 replaces that copy, and the test should keep testing that the page loads. Strengthen it when the real Landing page exists.
 - 2026-10-03: Playwright needs `sudo npx playwright install-deps` on this machine before any test can run. Reason: Chromium cannot start without `libasound2t64`, `libnspr4` and `libnss3`, and installing them needs root. Run it with no browser argument to cover Firefox and WebKit too, which the Phase 10 flows will need.
+- 2026-10-03: the Landing page layout is built from `context/design/LandingPage/spec.md`, a word description of the design images that sit beside it, because the images cannot be read directly. Reason: the owner's instruction, 2026-10-03. The spec was moved there from `context/landingPage-spec.md`, and where its numbers are marked `~` they are estimates from the images, not design values.
+- 2026-10-03: the photo mapping for the Landing page is written down from the spec's Photos table and the old open question about `public/images/` is closed. Reason: the owner, 2026-10-03. See the Photo mapping section.
+- 2026-10-03: Landing card radius is `20px` and the hero card is `24px`, which does not match the 12px in `ui.md`. Reason: the owner's instruction, 2026-10-03. `ui.md` is not edited. Later pages should reuse the same `rounded-[20px]` cards and `rounded-3xl` hero so the site stays consistent with the Landing page; buttons and inputs stay on the 8 to 12px from `ui.md`.
+- 2026-10-03: all ten "Unclear" items in the Landing spec were resolved by the owner on 2026-10-03: `saloon.jpg` on mobile too, cancellation copy reads 24h not 12h to match the business rule, a lucide `Star` in the desktop badge, the tablet header stretched edge to edge, `accent` for every WhatsApp green, the hamburger panel lists Home, About, Services, Find us, Book Now, Select only toggles, the mobile footer is the same dark footer in one column, and the sticky bar is a solid `primary` button with no blur.
+- 2026-10-03: the Landing hero renders at about 594px tall on desktop, not the ~500px estimate in the spec, because the content at a 52px heading is taller than the design frame. Reason: left as is, the owner's call is still open; nothing is clipped.
+- 2026-10-03: `tests/landing.spec.ts` checks the Landing page at 375, 768 and 1280px: heading text, the three service names, a Book Now link, no horizontal scrollbar, and the sticky bar visible on mobile only through `data-testid="sticky-book-bar"`. Reason: the images cannot be read by the model, so the checks stand in for looking at the page.
 - 2026-10-03: `/api/health/supabase` returns 404 with an empty body in production and `{"ok":true}` or `{"ok":false}` in development. Reason: the owner's decision, 2026-10-03. No check names, error details, key formats or project information leave the server. The per-check detail still exists in `lib/supabase/health.ts` because that is where `ok` is computed; the route drops it on purpose.
+
+## Photo mapping
+
+Source: the Photos table in `context/design/LandingPage/spec.md`. Every photo is `object-fit: cover`.
+
+| Place | File |
+|---|---|
+| Header logo, all sizes, cropped to a circle | `public/images/logo.jpg` |
+| Landing hero, all sizes | `public/images/saloon.jpg` |
+| Landing card: Signature Gel Manicure | `public/images/nails.jpg` |
+| Landing card: Silk Blowout + Gloss | `public/images/girl.jpg` |
+| Landing card: Spa Pedicure Deluxe | `public/images/feet.jpg` |
+
+Not used on the Landing page: `dark-saloon.jpg`, `lena.jpg`, `sofia.jpg`, `amara.jpg`. They stay unmapped until a later page's spec assigns them.
 
 ## Blockers and open questions
 
 Add anything waiting on the owner or on a provider (for example WhatsApp template approval).
 
-- `public/images/` has no documented page mapping. The owner must say which photo goes on which page if a design depends on one.
 - No tables exist in the project yet, so a real data read through the publishable key (the RLS path Phase 4 needs) is not yet proven. Only the auth and key checks are proven today.
+- Four Landing link targets are not in the design and are guesses: "Services" and "All services" go to `/book`, "View services" goes to `/book`, and "Cancellation policy" goes to `/cancellation-policy`, a route that does not exist and is not in `project-overview.md`. "Contact" goes to the WhatsApp link. Say the word and they change.
+- The desktop hero is about 594px tall against the ~500px estimate in the spec. Nothing is clipped; it is only taller.
 
 ## Session notes
 
 Add the newest note at the top. Keep each to 3 lines: what changed, what was verified, what is next.
 
+- 2026-10-03, Phase 2 Landing: `lib/sample-content.ts`, `components/landing/` (header, hero, service card, rituals grid, visit card, info row, footer, sticky bar) and the shadcn `button`, built from `context/design/LandingPage/spec.md`. Verified `typecheck`, `lint` and `build` pass and 11 Playwright tests pass, covering 375, 768 and 1280px for the heading text, three service names, a Book Now link, no horizontal scrollbar and the sticky bar on mobile only; screenshots are in `/tmp/kilo/landing-shots/`. Next: the About page.
 - 2026-10-03, owner decisions applied: Supabase variable names stay `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (audit found no other name in the code), and `/api/health/supabase` is now 404 in production and `{"ok":…}` only in development. Verified `typecheck`, `lint`, `build` pass, production returns 404 with 0 bytes, dev returns 200 `{"ok":true}`, and dev with an invalid service-role key returns 503 `{"ok":false}` with nothing leaked. Next: Phase 2, Landing page.
 - 2026-10-03, Phase 1 item 4: added `playwright.config.ts` and `tests/smoke.spec.ts`; Chromium 153 installed. First run failed on missing `libnspr4`, `libnss3` and `libasound2t64`; the owner ran `sudo npx playwright install-deps chromium` and `npx playwright test` then passed 1/1 in 29.4s. Verified `typecheck` and `lint` pass and the webServer logs show the build, `next start`, HTTP 200 and `WebServer available`. Next: Phase 2, Landing page.
 - 2026-10-03, Phase 1 item 3: project `ugffhcwxcnyxlsgsjcco` reachable; added `lib/supabase/` (browser, server, admin clients plus `env.ts`), `app/api/health/supabase/route.ts`, and `.env.example`. Found the anon key "failing" because the check used the secret-key-only REST root; switched it to `/auth/v1/health` and added a `key-format` check. Verified `typecheck`, `lint`, `build` pass, health returned 200 (its response shape has since changed, see the dev-only decision above), and a bogus key still returned 401. Next: item 4, Playwright smoke test.
