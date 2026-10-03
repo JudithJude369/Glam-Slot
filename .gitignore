@@ -47,7 +47,5 @@ yarn-error.log*
 /playwright/.cache/
 next-env.d.ts
 
-# Project context and planning docs
-/context
-.kilocode
-.kilo.jsonc
+# Kilo Code local files
+.kilo/
