@@ -39,7 +39,7 @@ Do not assume the paths below. Look at the file tree first, and `context/archite
 - Components: `components/` (shadcn primitives in `components/ui/`)
 - Shared logic and Zod schemas: `lib/`
 - Database: `supabase/migrations/`
-- Page designs: `context/design/<PageName>/` (Mobile, Tablet, Desktop)
+- Page designs: `context/design/<PageName>/` (a `spec.md` plus Mobile, Tablet and Desktop images)
 - Site images: `public/images/`
 - Tests: `tests/` (Playwright)
 
@@ -56,7 +56,7 @@ When a context file and the code disagree, trust the code, then fix the context 
 | Owner authentication              | the existing auth implementation and middleware |
 | Validation                        | Zod schemas in `lib/`                           |
 | Colours, fonts, type scale        | `context/ui.md`                                 |
-| Page layouts                      | design images in `context/design/<PageName>/`   |
+| Page layouts                      | `context/design/<PageName>/spec.md` (the images beside it are the original) |
 | Paystack and WhatsApp behavior    | current official provider docs, not memory      |
 
 ## 4. How to work
@@ -66,8 +66,8 @@ When a context file and the code disagree, trust the code, then fix the context 
 3. Read only the context files listed for that area in section 5.
 4. Write a short plan: files to change and risks. For a new page or feature, wait for my approval before implementing.
 5. Reuse existing components, patterns and schemas. Do not add a new library without asking.
-6. Build one task or page at a time, in the phase order of `context/progress-tracker.md`. If the page has a design in `context/design/`, match it. No unrelated refactors.
-7. Mobile design (375px) is the reference; Tablet and Desktop show how the layout changes at larger widths.
+6. Build one task or page at a time, in the phase order of `context/progress-tracker.md`. Before starting a page, open `context/design/<PageName>/spec.md` and build from it. No unrelated refactors.
+7. `spec.md` is the source for a page's layout. Mobile (375px) is the reference; Tablet and Desktop show how the layout changes at larger widths. If `spec.md` is missing, stop and tell me: "No spec.md for <PageName>. Please get one written from the design images." Do not invent a layout, and do not start a different page without asking me. Before coding, list which items from the spec's "Unclear" section you plan to assume.
 8. If a business rule is unclear or missing, ask. Do not guess.
 9. When done, update `context/progress-tracker.md`.
 
