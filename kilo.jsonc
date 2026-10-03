@@ -1,0 +1,26 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "mcp": {
+    "nextjs-docs": {
+      "type": "remote",
+      "url": "https://gitmcp.io/vercel/next.js",
+    },
+    "shadcn-docs": {
+      "type": "remote",
+      "url": "https://gitmcp.io/shadcn-ui/ui",
+    },
+    "supabase-docs": {
+      "type": "remote",
+      "url": "https://gitmcp.io/supabase/supabase",
+    },
+    "tailwind-docs": {
+      "type": "remote",
+      "url": "https://gitmcp.io/tailwindlabs/tailwindcss",
+    },
+    "playwright-docs": {
+      "type": "remote",
+      "url": "https://gitmcp.io/microsoft/playwright",
+    },
+    "zod-docs": { "type": "remote", "url": "https://gitmcp.io/colinhacks/zod" },
+  },
+}

@@ -61,6 +61,16 @@ for (const viewport of viewports) {
         expect(viewport.height - (box!.y + box!.height)).toBeLessThanOrEqual(21);
       },
     );
+
+    test("keeps the header on screen when the page is scrolled", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await page.mouse.wheel(0, 1200);
+      await expect(page.locator("header")).toBeInViewport();
+      const box = await page.locator("header").boundingBox();
+      expect(box!.y).toBeLessThanOrEqual(1);
+    });
   });
 }
 
