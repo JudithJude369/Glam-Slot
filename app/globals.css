@@ -1,26 +1,88 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fffbf6;
+  --foreground: #241318;
+  --card: #ffffff;
+  --card-foreground: #241318;
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+  --primary: #b81e4f;
+  --primary-foreground: #ffffff;
+  --secondary: #f9e8e0;
+  --secondary-foreground: #7a1f3a;
+  --muted: #f5ede6;
+  --muted-foreground: #8a756e;
+  --accent: #1e7a5a;
+  --accent-foreground: #ffffff;
+  --destructive: var(--danger);
+  --border: #f1e2d9;
+  --input: #ffffff;
+  --ring: var(--primary);
+  --danger: #c0392b;
+  --success: #1e7a5a;
+  --success-bg: #e2f3eb;
+  --warning: #b7791f;
+  --warning-bg: #fdf0d5;
+  --gold: #c99a5b;
+  --plum: #2e1a22;
+  --blush: #fbefeb;
+  --radius: 0.75rem;
 }
 
 @theme inline {
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-pt-serif), ui-serif, Georgia, serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-gold: var(--gold);
+  --color-plum: var(--plum);
+  --color-blush: var(--blush);
+  --radius-control: 0.5rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-serif;
+  }
 }
