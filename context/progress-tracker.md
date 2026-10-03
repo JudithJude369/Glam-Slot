@@ -72,9 +72,9 @@ No database yet. The "Book Now" button links to `/book`, which does not exist un
 
 ## Current status
 
-- Phase: Phase 2 complete, Phase 3 next
+- Phase: Phase 3 items 1 to 3 written, not applied. Item 4 not started.
 - Last completed task: Phase 2 — About page from `context/design/AboutPage/spec.md`
-- Next task: Phase 3 — migrations for the tables in `architecture.md`
+- Next task: apply the three Phase 3 migrations to `ugffhcwxcnyxlsgsjcco` and run `npm run db:verify`. Blocked on `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` in `.env.local`.
 
 ## Decisions log
 
@@ -112,6 +112,15 @@ Add one line per decision: date, decision, reason.
 - 2026-10-03: `tests/about.spec.ts` checks the About page at 375, 768 and 1280px: heading text, the three team names, a Book Now link, no horizontal scrollbar, and the sticky bar visible on mobile only. Reason: same as the Landing checks, the images cannot be read by the model.
 - 2026-10-03: `tests/landing.spec.ts` checks the Landing page at 375, 768 and 1280px: heading text, the three service names, a Book Now link, no horizontal scrollbar, and the sticky bar visible on mobile only through `data-testid="sticky-book-bar"`. Reason: the images cannot be read by the model, so the checks stand in for looking at the page.
 - 2026-10-03: `/api/health/supabase` returns 404 with an empty body in production and `{"ok":true}` or `{"ok":false}` in development. Reason: the owner's decision, 2026-10-03. No check names, error details, key formats or project information leave the server. The per-check detail still exists in `lib/supabase/health.ts` because that is where `ok` is computed; the route drops it on purpose.
+- 2026-10-03: the nine tables in `architecture.md` were approved by the owner on 2026-10-03. `bookings.status`, `payments.status`, `reminders.kind` and `bookings.source` are `text` with a `check`, not native enums. Reason: a value change later is an `alter table ... drop constraint, add constraint` instead of `alter type`, and no enum type is created that a later migration has to drop.
+- 2026-10-03: the owner's email lives in its own single-row table `public.salon_owner`, not in `salon_settings`. Reason: `salon_settings` is public to the anon key because the Landing and About pages read it, and a column-level grant would break PostgREST's `select *`. A separate table with no anon grant keeps the address readable and the owner email private.
+- 2026-10-03: RLS identifies the owner by `lower(email) = lower(auth.jwt() ->> 'email')` against `salon_owner`, wrapped in a `security definer` function `private.is_salon_owner()` with `set search_path = ''`. Reason: the owner's decision, 2026-10-03, and supabase.com/docs/guides/database/postgres/row-level-security: a definer function reads `salon_owner` without re-entering RLS, the result is cached once per statement, and an unmatched email denies. The `email` claim is set by the auth server, so unlike `user_metadata` it cannot be edited by the signed-in user.
+- 2026-10-03: the `salon_owner` insert policy compares the JWT email directly instead of calling `private.is_salon_owner()`. Reason: the function reads `salon_owner`, and a row being inserted is not visible to the same command that inserts it, so the claim would always fail.
+- 2026-10-03: every migration starts by revoking the automatic grants, and `alter default privileges in schema public revoke all on tables from anon, authenticated` was added. Reason: supabase.com/docs/guides/database/postgres/row-level-security says a table in an exposed schema arrives with `select, insert, update, delete` granted to `anon` and `authenticated`, and adding policies does not take those grants back.
+- 2026-10-03: Phase 3 is three migrations, not one: `20261003130000_schema.sql`, `20261003130100_booking_exclusion.sql`, `20261003130200_rls.sql`. Reason: the exclusion constraint needs `btree_gist` to exist first, and keeping it alone means one file to drop and retry if the extension cannot be created by the migration role.
+- 2026-10-03: the double-booking rule is `exclude using gist (staff_id with =, tstzrange(starts_at, ends_at, '[)') with &&) where (status in ('pending_payment','confirmed'))`, and `bookings.staff_id` is `not null`. Reason: "any available" is resolved to one staff member inside the transaction that inserts the booking, and the `[)` range lets a booking start exactly when the previous one ends.
+- 2026-10-03: the proof for the exclusion constraint and RLS is `npm run db:verify`, a Node script over the Data API, not pgTAP. Reason: `supabase test db` runs `pg_prove` in a container and this machine has no Docker, so the pgTAP files the RLS guide asks for under `supabase/tests/` cannot be run here. The script asserts `23P01` on an overlap, one winner out of two simultaneous inserts, `42501` for anon and for a signed-in stranger, and the public reads that must keep working. Writing the pgTAP files is still owed.
+- 2026-10-03: added `npm run db:verify`, and `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` to `.env.example`. Reason: `supabase db push` and `supabase link` need both, neither has the `NEXT_PUBLIC_` prefix so neither can reach the browser, and no application code reads them.
 
 ## Photo mapping
 
@@ -148,7 +157,7 @@ Written at the end of the 2026-10-03 session. Read this before starting Phase 3.
 ### Half-done
 
 - **Nobody has looked at either page.** Every check is a Playwright assertion or a DOM measurement. Screenshots from the last run are in `/tmp/kilo/landing-shots/` and `/tmp/kilo/about-shots/`, but those are gone on reboot. A human pass against the design images is still owed.
-- **The About spec is not in git.** The uncommitted `.gitignore` change ignores `/context`, so `context/design/AboutPage/spec.md` is untracked. The Landing spec is already tracked, so it stays. Decide whether `/context` should be ignored or only the images.
+- **The About spec is not in git.** Resolved 2026-10-03: `context/design/**/spec.md` is tracked (`git ls-files context/design` lists the About spec), and the working tree is clean, so the old `.gitignore` change that ignored `/context` is gone.
 - **Every "Book Now" link 404s** because `/book` arrives in Phase 5. So does `/cancellation-policy`, and "Services", "All services" and "View services" all point at `/book`.
 - **The desktop "Find us" link does nothing.** It jumps to `#visit`, and that anchor only exists below 1024 pixels on both pages.
 - **Page metadata is still the create-next-app default.** The browser title reads "Glam-Slot" on both pages, visible on the live site.
@@ -171,6 +180,10 @@ Before starting Phase 3, read `context/architecture.md` for the table list and t
 
 Add anything waiting on the owner or on a provider (for example WhatsApp template approval).
 
+- The three Phase 3 migrations are written but have never been executed, so nothing in them is proven. `supabase db push` needs `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` in `.env.local`; both are the owner's to create (see the session note). Until they run, `bookings_staff_no_overlap`, `private.is_salon_owner()` and every policy are unverified SQL.
+- `create extension btree_gist` has not been run. If the migration role is not allowed to create extensions, `20261003130100_booking_exclusion.sql` fails and the extension has to be enabled from the dashboard first.
+- The pgTAP RLS tests the Supabase guide asks for (`supabase/tests/<table>_rls.test.sql`) are not written. `supabase test db` runs `pg_prove` in a container and this machine has no Docker.
+
 - No tables exist in the project yet, so a real data read through the publishable key (the RLS path Phase 4 needs) is not yet proven. Only the auth and key checks are proven today.
 - The desktop About paragraph says "Founded by Amara" while the team table lists her as one of three staff. It is sample copy for now; reword before a real salon uses it. The owner has been told.
 - Four Landing link targets are not in the design and are guesses: "Services" and "All services" go to `/book`, "View services" goes to `/book`, and "Cancellation policy" goes to `/cancellation-policy`, a route that does not exist and is not in `project-overview.md`. "Contact" goes to the WhatsApp link. Say the word and they change.
@@ -179,6 +192,9 @@ Add anything waiting on the owner or on a provider (for example WhatsApp templat
 ## Session notes
 
 Add the newest note at the top. Keep each to 3 lines: what changed, what was verified, what is next.
+
+- 2026-10-03, Phase 3 items 1 to 3 written, not applied: three migrations under `supabase/migrations/` (schema, `bookings_staff_no_overlap`, RLS), `tests/db/verify-db.ts` with `npm run db:verify`, `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` in `.env.example`, `owner_email` split into a private `salon_owner` table, and every grant revoked before it is re-granted. Verified `typecheck`, `lint` and `build` pass and the project still has no tables (`PGRST205` for `public.services`); the SQL itself is unrun. Next: the owner pastes a personal access token and the database password into `.env.local`, then `supabase link` and `supabase db push` and `npm run db:verify`.
+- 2026-10-03, end of session: added the "Where the project stands" section with what is verified, what is half-done and the order to work in next. State verified against the repo: `git log`, the file tree and `git status`, not from memory. Nothing was built in this step, so no code checks were rerun; the last green run was 27 Playwright tests plus `typecheck`, `lint` and `build`. Still uncommitted and worth a decision: the `.gitignore` change that ignores `/context`, and the untracked About spec it leaves behind.
 
 - 2026-10-03, end of session: added the "Where the project stands" section with what is verified, what is half-done and the order to work in next. State verified against the repo: `git log`, the file tree and `git status`, not from memory. Nothing was built in this step, so no code checks were rerun; the last green run was 27 Playwright tests plus `typecheck`, `lint` and `build`. Still uncommitted and worth a decision: the `.gitignore` change that ignores `/context`, and the untracked About spec it leaves behind.
 - 2026-10-03, header made sticky on the owner's request: `sticky top-0 z-50` in `components/landing/site-header.tsx`, so both pages keep the nav while scrolling. Verified `typecheck`, `lint` and `build` pass and 27 Playwright tests pass, including 6 new checks that scroll 1200px at 375, 768 and 1280px and assert the header is still at the top of the viewport. Hit and fixed a stale truncated `.next/dev/types/validator.ts` that was failing the type check. Next: Phase 3, migrations.
