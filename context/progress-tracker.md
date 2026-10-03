@@ -24,10 +24,21 @@ No database yet. The "Book Now" button links to `/book`, which does not exist un
 
 ### Phase 3: Database and owner access
 
-- [ ] Migrations for all tables in `architecture.md`
-- [ ] Double-booking exclusion constraint, with a test that proves it
+- [x] Migrations for all tables in `architecture.md`
+- [x] Double-booking exclusion constraint, with a test that proves it
 - [ ] RLS on every table
 - [ ] Owner login and route protection for `/dashboard`
+
+Migrations applied to `ugffhcwxcnyxlsgsjcco` on 2026-10-03 by the owner
+(`supabase login`, `supabase link`, `supabase db push`), then `npm run db:verify`
+passed 20 of 20 checks.
+
+| Item | Status | What the evidence is |
+| --- | --- | --- |
+| 1. Migrations for all tables | done | All ten tables answer `200` over the Data API with the secret key. `db:verify` wrote and read real rows in `services`, `staff`, `bookings`, `salon_settings` and `salon_owner`, and wrote `staff_services` through the admin client only. `staff_hours`, `payments`, `reminders` and `reminder_settings` exist but no check has ever inserted a row, so their columns are unexercised. |
+| 2. Double-booking exclusion constraint | done | `23P01` `exclusion_violation` on an overlapping booking for the same staff member. A booking starting exactly when the previous one ends is accepted, the range is half open `[)`. The same time for a different staff member is accepted. Setting a booking to `cancelled` frees the slot again. Two simultaneous inserts for one slot returned `none` and `23P01`, so exactly one won. |
+| 3. RLS on every table | open | Proved on six tables: `anon` reads `services`, `staff`, `staff_hours` and `salon_settings` with no error, and gets `42501` on `bookings` and `salon_owner`. A signed-in stranger reads no `bookings` and gets `42501` inserting one, while still reading public `services`. The owner inserts into `bookings` and `salon_settings` and claims `salon_owner`. **Not proved:** no check touches `staff_services`, `payments`, `reminders` or `reminder_settings`, and no check exercises any `update` or `delete` policy. Close it by extending `tests/db/verify-db.ts`. |
+| 4. Owner login and route protection for `/dashboard` | not started | Nothing written. The project has zero Supabase Auth users and `salon_owner` is empty, so there is no owner identity yet. `/login` and the middleware do not exist. |
 
 ### Phase 4: Owner settings
 
@@ -72,9 +83,9 @@ No database yet. The "Book Now" button links to `/book`, which does not exist un
 
 ## Current status
 
-- Phase: Phase 3 items 1 to 3 written, not applied. Item 4 not started.
-- Last completed task: Phase 2 — About page from `context/design/AboutPage/spec.md`
-- Next task: apply the three Phase 3 migrations to `ugffhcwxcnyxlsgsjcco` and run `npm run db:verify`. Blocked on `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` in `.env.local`.
+- Phase: Phase 3, items 1 and 2 verified. Item 3 partly proved. Item 4 not started.
+- Last completed task: Phase 3 item 2 — the exclusion constraint, proved by `npm run db:verify`
+- Next task: close Phase 3 item 3 by extending `tests/db/verify-db.ts` to cover `staff_services`, `payments`, `reminders`, `reminder_settings` and the `update` and `delete` policies. Then Phase 3 item 4.
 
 ## Decisions log
 
@@ -121,6 +132,9 @@ Add one line per decision: date, decision, reason.
 - 2026-10-03: the double-booking rule is `exclude using gist (staff_id with =, tstzrange(starts_at, ends_at, '[)') with &&) where (status in ('pending_payment','confirmed'))`, and `bookings.staff_id` is `not null`. Reason: "any available" is resolved to one staff member inside the transaction that inserts the booking, and the `[)` range lets a booking start exactly when the previous one ends.
 - 2026-10-03: the proof for the exclusion constraint and RLS is `npm run db:verify`, a Node script over the Data API, not pgTAP. Reason: `supabase test db` runs `pg_prove` in a container and this machine has no Docker, so the pgTAP files the RLS guide asks for under `supabase/tests/` cannot be run here. The script asserts `23P01` on an overlap, one winner out of two simultaneous inserts, `42501` for anon and for a signed-in stranger, and the public reads that must keep working. Writing the pgTAP files is still owed.
 - 2026-10-03: added `npm run db:verify`, and `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` to `.env.example`. Reason: `supabase db push` and `supabase link` need both, neither has the `NEXT_PUBLIC_` prefix so neither can reach the browser, and no application code reads them.
+- 2026-10-03: the cleanup in `tests/db/verify-db.ts` restores `salon_settings` and `salon_owner` instead of deleting them. Reason: the first version deleted the `salon_settings` row whenever one already existed, which was harmless while the table was empty but would have destroyed the single settings row the moment Phase 4 writes it.
+- 2026-10-03: the "the owner updates salon_settings" check runs through the signed-in owner client, not the admin client. Reason: the admin client bypasses RLS, so a write through it proved nothing about the policy it was named after.
+- 2026-10-03: `supabase/.temp/` ended up committed and pushed with the migrations. Reason: unknown, but it is machine-local CLI state; it holds the project ref and the pooler URL with no password, and should be added to `.gitignore` and untracked.
 
 ## Photo mapping
 
@@ -142,12 +156,13 @@ The About header logo is `public/images/logo.jpg` again, the same circular crop.
 
 ## Where the project stands
 
-Written at the end of the 2026-10-03 session. Read this before starting Phase 3.
+Written at the end of the 2026-10-03 session. Read this before starting Phase 4.
 
 ### Done and verified
 
 - Phase 1 in full: Next.js 16 with TypeScript strict, Tailwind v4 and shadcn/ui; every colour and font from `ui.md`; Supabase browser, server and admin clients plus `.env.example`; Playwright installed with a passing smoke test.
 - Phase 2 in full: the Landing page at `/` and the About page at `/about`, both built from their `spec.md`, sharing one sticky header, one footer, the shadcn button and the mobile sticky Book Now bar.
+- Phase 3 items 1 and 2: the three migrations are applied to the live project, and `npm run db:verify` passes 20 of 20 checks. `btree_gist` was created without complaint, so the exclusion constraint is live.
 - `lib/sample-content.ts` holds all placeholder content: salon details, three services, three team members and the link lists.
 - `/api/health/supabase` proves the Supabase keys work. JSON in development, 404 in production.
 - 27 Playwright tests pass, covering both pages at 375, 768 and 1280 pixels.
@@ -157,34 +172,33 @@ Written at the end of the 2026-10-03 session. Read this before starting Phase 3.
 ### Half-done
 
 - **Nobody has looked at either page.** Every check is a Playwright assertion or a DOM measurement. Screenshots from the last run are in `/tmp/kilo/landing-shots/` and `/tmp/kilo/about-shots/`, but those are gone on reboot. A human pass against the design images is still owed.
-- **The About spec is not in git.** Resolved 2026-10-03: `context/design/**/spec.md` is tracked (`git ls-files context/design` lists the About spec), and the working tree is clean, so the old `.gitignore` change that ignored `/context` is gone.
 - **Every "Book Now" link 404s** because `/book` arrives in Phase 5. So does `/cancellation-policy`, and "Services", "All services" and "View services" all point at `/book`.
 - **The desktop "Find us" link does nothing.** It jumps to `#visit`, and that anchor only exists below 1024 pixels on both pages.
 - **Page metadata is still the create-next-app default.** The browser title reads "Glam-Slot" on both pages, visible on the live site.
-- **Supabase has no tables.** Only the auth and key checks are proven; reading real data through the publishable key is Phase 3 work.
+- **RLS is only partly proved.** `db:verify` covers six tables and the `select` and `insert` policies. `staff_services`, `payments`, `reminders` and `reminder_settings` have never been read or written by a check, and no `update` or `delete` policy has been exercised.
+- **There is no owner identity.** Zero Supabase Auth users, `salon_owner` is empty, so `private.is_salon_owner()` denies every real request until an owner account exists and its email is in `salon_owner`. Nothing seeds the tables yet, not even the single `salon_settings` and `reminder_settings` rows.
 - **Content is hard-coded.** Services, hours, team and photos come from `lib/sample-content.ts` until Phase 4 replaces that with database reads.
 - **The desktop Landing hero is about 594px tall** against the ~500px estimate in the spec. Nothing is clipped.
 - **The pages are not in `app/(client)/`.** They sit at `app/page.tsx` and `app/about/page.tsx` because no route groups exist yet.
+- **`supabase/.temp/` is committed and pushed.** Nine files of local CLI state, including the project ref and the pooler URL. No password is in `pooler-url` and `linked-project.json` holds only the ref, name and organisation ids, so nothing secret leaked, but the directory should be git-ignored and untracked.
 
 ### Next, in order
 
-1. Phase 3, item 1: migrations for every table in `architecture.md`, as new files under `supabase/migrations/`.
-2. Phase 3, item 2: the double-booking exclusion constraint, with a test that proves it.
-3. Phase 3, item 3: RLS on every table.
-4. Phase 3, item 4: owner login and route protection for `/dashboard`.
-5. Then Phase 4, which replaces the sample content with real reads.
+1. Phase 3, item 3: extend `tests/db/verify-db.ts` to cover the four untouched tables and the `update` and `delete` policies, then tick it.
+2. Phase 3, item 4: owner login and route protection for `/dashboard`, including creating the owner account and its `salon_owner` row.
+3. Then Phase 4, which replaces the sample content with real reads.
 
-Before starting Phase 3, read `context/architecture.md` for the table list and the current auth implementation, and confirm the schema with the owner before writing the first migration.
+Before starting Phase 3 item 4, read `context/architecture.md` for the auth rules and the existing `lib/supabase/server.ts` client.
 
 ## Blockers and open questions
 
 Add anything waiting on the owner or on a provider (for example WhatsApp template approval).
 
-- The three Phase 3 migrations are written but have never been executed, so nothing in them is proven. `supabase db push` needs `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` in `.env.local`; both are the owner's to create (see the session note). Until they run, `bookings_staff_no_overlap`, `private.is_salon_owner()` and every policy are unverified SQL.
-- `create extension btree_gist` has not been run. If the migration role is not allowed to create extensions, `20261003130100_booking_exclusion.sql` fails and the extension has to be enabled from the dashboard first.
-- The pgTAP RLS tests the Supabase guide asks for (`supabase/tests/<table>_rls.test.sql`) are not written. `supabase test db` runs `pg_prove` in a container and this machine has no Docker.
-
-- No tables exist in the project yet, so a real data read through the publishable key (the RLS path Phase 4 needs) is not yet proven. Only the auth and key checks are proven today.
+- Phase 3 item 3 is open, not done. RLS is enabled and the grants are revoked on all ten tables, but `db:verify` only proves it on six of them and never touches an `update` or `delete` policy. Closing it means extending `tests/db/verify-db.ts`, not new SQL.
+- The project has no data at all: every table is empty, `salon_owner` has no row, and there are zero Supabase Auth users. Until an owner account exists and its email is in `salon_owner`, `private.is_salon_owner()` denies every real request and Phase 4 has nothing to read. Deciding whether seeding belongs in a migration, in Settings, or in an admin script is still open.
+- `supabase/.temp/` is tracked in git. No secret is in it, but it is machine-local CLI state and should be ignored.
+- The pgTAP RLS tests the Supabase guide asks for (`supabase/tests/<table>_rls.test.sql`) are not written. `supabase test db` runs `pg_prove` in a container and this machine has no Docker, so `npm run db:verify` covers the same ground over the Data API instead.
+- `npm run db:verify` prints a Node `MODULE_TYPELESS_PACKAGE_JSON` warning because `tests/db/verify-db.ts` has no module type. Harmless, and fixing it means renaming it to `.mts`; adding `"type": "module"` to `package.json` is not an option because the Next config files rely on the current setup.
 - The desktop About paragraph says "Founded by Amara" while the team table lists her as one of three staff. It is sample copy for now; reword before a real salon uses it. The owner has been told.
 - Four Landing link targets are not in the design and are guesses: "Services" and "All services" go to `/book`, "View services" goes to `/book`, and "Cancellation policy" goes to `/cancellation-policy`, a route that does not exist and is not in `project-overview.md`. "Contact" goes to the WhatsApp link. Say the word and they change.
 - The desktop hero is about 594px tall against the ~500px estimate in the spec. Nothing is clipped; it is only taller.
@@ -193,9 +207,8 @@ Add anything waiting on the owner or on a provider (for example WhatsApp templat
 
 Add the newest note at the top. Keep each to 3 lines: what changed, what was verified, what is next.
 
+- 2026-10-03, Phase 3 items 1 and 2 verified: the owner ran `supabase login`, `link` and `db push`, so all ten tables are on the live project, and I re-ran `npm run db:verify` myself and read the output: 20 of 20 checks pass, including `23P01` on an overlap and one winner out of two simultaneous inserts. Fixed a bug in the script's cleanup that would have deleted a real `salon_settings` row once Phase 4 seeds one, and made the owner-update check run as the owner instead of the admin client; after the run all six seeded tables are empty and no test users are left. Next: extend the script to cover the four untouched tables and the `update` and `delete` policies to close item 3. Also open: `supabase/.temp/` is committed and should be ignored.
 - 2026-10-03, Phase 3 items 1 to 3 written, not applied: three migrations under `supabase/migrations/` (schema, `bookings_staff_no_overlap`, RLS), `tests/db/verify-db.ts` with `npm run db:verify`, `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` in `.env.example`, `owner_email` split into a private `salon_owner` table, and every grant revoked before it is re-granted. Verified `typecheck`, `lint` and `build` pass and the project still has no tables (`PGRST205` for `public.services`); the SQL itself is unrun. Next: the owner pastes a personal access token and the database password into `.env.local`, then `supabase link` and `supabase db push` and `npm run db:verify`.
-- 2026-10-03, end of session: added the "Where the project stands" section with what is verified, what is half-done and the order to work in next. State verified against the repo: `git log`, the file tree and `git status`, not from memory. Nothing was built in this step, so no code checks were rerun; the last green run was 27 Playwright tests plus `typecheck`, `lint` and `build`. Still uncommitted and worth a decision: the `.gitignore` change that ignores `/context`, and the untracked About spec it leaves behind.
-
 - 2026-10-03, end of session: added the "Where the project stands" section with what is verified, what is half-done and the order to work in next. State verified against the repo: `git log`, the file tree and `git status`, not from memory. Nothing was built in this step, so no code checks were rerun; the last green run was 27 Playwright tests plus `typecheck`, `lint` and `build`. Still uncommitted and worth a decision: the `.gitignore` change that ignores `/context`, and the untracked About spec it leaves behind.
 - 2026-10-03, header made sticky on the owner's request: `sticky top-0 z-50` in `components/landing/site-header.tsx`, so both pages keep the nav while scrolling. Verified `typecheck`, `lint` and `build` pass and 27 Playwright tests pass, including 6 new checks that scroll 1200px at 375, 768 and 1280px and assert the header is still at the top of the viewport. Hit and fixed a stale truncated `.next/dev/types/validator.ts` that was failing the type check. Next: Phase 3, migrations.
 - 2026-10-03, Phase 2 About: `app/about/page.tsx` and `components/about/` (hero, team section, team card, contact card), built from `context/design/AboutPage/spec.md`, reusing the Landing header, footer, buttons and sticky bar. Verified `typecheck`, `lint` and `build` pass and 21 Playwright tests pass, including 10 new About checks at 375, 768 and 1280px; measured box sizes against the spec (hero image 335x192, 344x283 and 512x465, team cards 82, 150 and 115px tall, radii 24px and 32px). Next: Phase 3, migrations. Not verified by eye: nobody has looked at the page, screenshots are in `/tmp/kilo/about-shots/`.
