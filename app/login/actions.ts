@@ -12,8 +12,6 @@ const credentials = z.object({
 
 export type SignInState = { error: string | null };
 
-export const initialSignInState: SignInState = { error: null };
-
 export async function signIn(
   _previous: SignInState,
   formData: FormData,
