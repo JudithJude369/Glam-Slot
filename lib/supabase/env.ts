@@ -1,0 +1,31 @@
+export type SupabasePublicEnv = {
+  url: string;
+  anonKey: string;
+};
+
+export function getSupabasePublicEnv(): SupabasePublicEnv {
+  // Next.js inlines NEXT_PUBLIC_ variables at build time, so these must stay
+  // literal member accesses on process.env and must not be destructured.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set. Add it to .env.local.");
+  }
+
+  if (!anonKey) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY is not set. Add it to .env.local.");
+  }
+
+  return { url, anonKey };
+}
+
+export function getSupabaseServiceRoleKey(): string {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceRoleKey) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set. Add it to .env.local.");
+  }
+
+  return serviceRoleKey;
+}
