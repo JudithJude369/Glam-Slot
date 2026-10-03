@@ -90,7 +90,7 @@ A task is never done just because the code was written. Before reporting complet
 3. Database changes: use a new migration, check RLS, and confirm the double-booking constraint still holds.
 4. API changes: call the route with valid and invalid input. Zod must reject the invalid input.
 5. Payments and webhooks: test in Paystack test mode. Send the same webhook twice and confirm it is handled once.
-6. UI changes: check at 375px wide and on desktop, including loading, empty and error states.
+6. UI changes: check at 375px, 768px and desktop, including loading, empty and error states.
 7. If anything fails, find the cause and fix it before reporting.
 
 Final report: what changed, what you verified and how, and anything you could not verify.
