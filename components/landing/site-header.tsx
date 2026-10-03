@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import {
 
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <header className="border-b border-border bg-background">
@@ -62,20 +64,23 @@ export function SiteHeader() {
           aria-label="Main"
           className="hidden items-center gap-6 lg:flex"
         >
-          {desktopNavItems.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              aria-current={item.active ? "page" : undefined}
-              className={
-                item.active
-                  ? "border-b-2 border-primary pb-0.5 text-sm font-medium text-primary"
-                  : "text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
-              }
-            >
-              {item.label}
-            </Link>
-          ))}
+          {desktopNavItems.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={
+                  active
+                    ? "border-b-2 border-primary pb-0.5 text-sm font-medium text-primary"
+                    : "text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
+                }
+              >
+                {item.label}
+              </Link>
+            );
+          })}
           <Link
             href="#visit"
             className="flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"

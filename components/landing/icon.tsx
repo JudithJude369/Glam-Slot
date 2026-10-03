@@ -1,10 +1,17 @@
-import { Clock, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
+import {
+  Clock,
+  MapPin,
+  MessageCircle,
+  Phone,
+  ShieldCheck,
+} from "lucide-react";
 
 const icons = {
   pin: MapPin,
   clock: Clock,
   chat: MessageCircle,
   shield: ShieldCheck,
+  phone: Phone,
 } as const;
 
 export type IconName = keyof typeof icons;

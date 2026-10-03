@@ -25,6 +25,7 @@ export const salon = {
   cancellationShort: "Free cancel 24h",
   whatsappNumber: "+1 (305) 555-0142",
   whatsappHref: "https://wa.me/13055550142",
+  phone: "+1 (305) 555-0142",
   phoneHref: "tel:+13055550142",
 } as const;
 
@@ -34,6 +35,10 @@ export const photos = {
   gelManicure: "/images/nails.jpg",
   blowout: "/images/girl.jpg",
   pedicure: "/images/feet.jpg",
+  aboutHero: "/images/dark-saloon.jpg",
+  amara: "/images/amara.jpg",
+  sofia: "/images/sofia.jpg",
+  lena: "/images/lena.jpg",
 } as const;
 
 export const services: Service[] = [
@@ -101,9 +106,9 @@ export const mobileNavItems = [
 ] as const;
 
 export const desktopNavItems = [
-  { label: "Home", href: "/", active: true },
-  { label: "About", href: "/about", active: false },
-  { label: "Services", href: "/book", active: false },
+  { label: "Home", href: "/" },
+  { label: "About", href: "/about" },
+  { label: "Services", href: "/book" },
 ] as const;
 
 export const footerColumns = [
@@ -123,3 +128,57 @@ export const footerColumns = [
     ],
   },
 ] as const;
+
+export type TeamMember = {
+  id: string;
+  name: string;
+  photo: string;
+  roleDesktop: string;
+  roleMobile: string;
+  roleShort: string;
+};
+
+export const team: TeamMember[] = [
+  {
+    id: "amara",
+    name: "Amara",
+    photo: photos.amara,
+    roleDesktop: "Master colorist • 9 yrs",
+    roleMobile: "Master colorist • 9 yrs",
+    roleShort: "Colorist",
+  },
+  {
+    id: "sofia",
+    name: "Sofia",
+    photo: photos.sofia,
+    roleDesktop: "Nail artist • 6 yrs",
+    roleMobile: "Nails & art • 6 yrs",
+    roleShort: "Nails",
+  },
+  {
+    id: "lena",
+    name: "Lena",
+    photo: photos.lena,
+    roleDesktop: "Skin & brows • 5 yrs",
+    roleMobile: "Skin & brows • 5 yrs",
+    roleShort: "Brows",
+  },
+];
+
+export const aboutHero = {
+  eyebrow: "Our story",
+  heading: "A little salon with a big heart.",
+  paragraphs: {
+    mobile:
+      "GlamSlot started in 2019 with two chairs and one promise: never rush a client. Today our all-women team serves 800+ regulars with deposits that protect both sides.",
+    tablet:
+      "Two chairs in 2019, a neighborhood ritual today. Deposits keep slots fair for everyone.",
+    desktop:
+      "Founded by Amara in 2019, GlamSlot keeps beauty stress-free: transparent deposits, honest timing, and reminders that actually help.",
+  },
+  imageAlt: "GlamSlot salon interior",
+} as const;
+
+export const contact = {
+  strip: `${salon.addressShort} • ${salon.phone}`,
+} as const;

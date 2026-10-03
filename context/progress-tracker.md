@@ -19,8 +19,8 @@ Use static sample content kept in one file (for example `lib/sample-content.ts`)
 No database yet. The "Book Now" button links to `/book`, which does not exist until Phase 5.
 
 - [x] Landing page (build from `context/design/LandingPage/`)
-- [ ] About page (build from `context/design/AboutPage/`)
-- [ ] Both pages checked at 375px and on desktop
+- [x] About page (build from `context/design/AboutPage/`)
+- [x] Both pages checked at 375px, 768px and desktop"
 
 ### Phase 3: Database and owner access
 
@@ -103,28 +103,38 @@ Add one line per decision: date, decision, reason.
 - 2026-10-03: Landing card radius is `20px` and the hero card is `24px`, which does not match the 12px in `ui.md`. Reason: the owner's instruction, 2026-10-03. `ui.md` is not edited. Later pages should reuse the same `rounded-[20px]` cards and `rounded-3xl` hero so the site stays consistent with the Landing page; buttons and inputs stay on the 8 to 12px from `ui.md`.
 - 2026-10-03: all ten "Unclear" items in the Landing spec were resolved by the owner on 2026-10-03: `saloon.jpg` on mobile too, cancellation copy reads 24h not 12h to match the business rule, a lucide `Star` in the desktop badge, the tablet header stretched edge to edge, `accent` for every WhatsApp green, the hamburger panel lists Home, About, Services, Find us, Book Now, Select only toggles, the mobile footer is the same dark footer in one column, and the sticky bar is a solid `primary` button with no blur.
 - 2026-10-03: the Landing hero renders at about 594px tall on desktop, not the ~500px estimate in the spec, because the content at a 52px heading is taller than the design frame. Reason: left as is, the owner's call is still open; nothing is clipped.
+- 2026-10-03: the About page layout is built from `context/design/AboutPage/spec.md`, moved there from `about-spec.md` so it matches the Landing naming. Reason: the owner's convention from the Landing task, 2026-10-03.
+- 2026-10-03: the header nav active link now comes from `usePathname()` in `components/landing/site-header.tsx` instead of a hardcoded flag, so About lights up without a second header. Reason: the About spec, 2026-10-03. The mobile nav panel has no active state.
+- 2026-10-03: all nine "Unclear" items in the About spec were resolved by the owner on 2026-10-03: `dark-saloon.jpg` on mobile too, all three copy variants built and switched with `display: none`, the tablet header stretched edge to edge, a green WhatsApp button added under the address in the mobile Contact card, the "Book" pill links to `/book` with no staff preselected, staff names stay DM Sans on mobile and tablet and PT Serif on desktop, the mobile footer is the same stacked footer, and "Founded by Amara" is kept as sample copy.
+- 2026-10-03: the About page lives at `app/about/page.tsx`, not `app/(client)/about/page.tsx`. Reason: no route groups exist yet and adding one would move the committed Landing page. Phase 4 or a later page can move both under `app/(client)/` in one commit.
+- 2026-10-03: `tests/about.spec.ts` checks the About page at 375, 768 and 1280px: heading text, the three team names, a Book Now link, no horizontal scrollbar, and the sticky bar visible on mobile only. Reason: same as the Landing checks, the images cannot be read by the model.
 - 2026-10-03: `tests/landing.spec.ts` checks the Landing page at 375, 768 and 1280px: heading text, the three service names, a Book Now link, no horizontal scrollbar, and the sticky bar visible on mobile only through `data-testid="sticky-book-bar"`. Reason: the images cannot be read by the model, so the checks stand in for looking at the page.
 - 2026-10-03: `/api/health/supabase` returns 404 with an empty body in production and `{"ok":true}` or `{"ok":false}` in development. Reason: the owner's decision, 2026-10-03. No check names, error details, key formats or project information leave the server. The per-check detail still exists in `lib/supabase/health.ts` because that is where `ok` is computed; the route drops it on purpose.
 
 ## Photo mapping
 
-Source: the Photos table in `context/design/LandingPage/spec.md`. Every photo is `object-fit: cover`.
+Source: the Photos tables in `context/design/LandingPage/spec.md` and `context/design/AboutPage/spec.md`. Every photo is `object-fit: cover`.
 
-| Place | File |
-|---|---|
-| Header logo, all sizes, cropped to a circle | `public/images/logo.jpg` |
-| Landing hero, all sizes | `public/images/saloon.jpg` |
-| Landing card: Signature Gel Manicure | `public/images/nails.jpg` |
-| Landing card: Silk Blowout + Gloss | `public/images/girl.jpg` |
-| Landing card: Spa Pedicure Deluxe | `public/images/feet.jpg` |
+| Place                                       | File                            |
+| ------------------------------------------- | ------------------------------- |
+| Header logo, all sizes, cropped to a circle | `public/images/logo.jpg`        |
+| Landing hero, all sizes                     | `public/images/saloon.jpg`      |
+| Landing card: Signature Gel Manicure        | `public/images/nails.jpg`       |
+| Landing card: Silk Blowout + Gloss          | `public/images/girl.jpg`        |
+| Landing card: Spa Pedicure Deluxe           | `public/images/feet.jpg`        |
+| About hero, all sizes                       | `public/images/dark-saloon.jpg` |
+| About team: Amara                           | `public/images/amara.jpg`       |
+| About team: Sofia                           | `public/images/sofia.jpg`       |
+| About team: Lena                            | `public/images/lena.jpg`        |
 
-Not used on the Landing page: `dark-saloon.jpg`, `lena.jpg`, `sofia.jpg`, `amara.jpg`. They stay unmapped until a later page's spec assigns them.
+The About header logo is `public/images/logo.jpg` again, the same circular crop. Not used on the About page: `saloon.jpg`, `nails.jpg`, `girl.jpg`, `feet.jpg`. `dark-saloon.jpg`, `lena.jpg`, `sofia.jpg` and `amara.jpg` are now mapped, so all nine photos have a place.
 
 ## Blockers and open questions
 
 Add anything waiting on the owner or on a provider (for example WhatsApp template approval).
 
 - No tables exist in the project yet, so a real data read through the publishable key (the RLS path Phase 4 needs) is not yet proven. Only the auth and key checks are proven today.
+- The desktop About paragraph says "Founded by Amara" while the team table lists her as one of three staff. It is sample copy for now; reword before a real salon uses it. The owner has been told.
 - Four Landing link targets are not in the design and are guesses: "Services" and "All services" go to `/book`, "View services" goes to `/book`, and "Cancellation policy" goes to `/cancellation-policy`, a route that does not exist and is not in `project-overview.md`. "Contact" goes to the WhatsApp link. Say the word and they change.
 - The desktop hero is about 594px tall against the ~500px estimate in the spec. Nothing is clipped; it is only taller.
 
