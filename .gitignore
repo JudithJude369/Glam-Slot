@@ -47,5 +47,8 @@ yarn-error.log*
 /playwright/.cache/
 next-env.d.ts
 
+# supabase
+supabase/.temp/
+
 # Kilo Code local files
 .kilo/
