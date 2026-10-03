@@ -131,6 +131,42 @@ Source: the Photos tables in `context/design/LandingPage/spec.md` and `context/d
 
 The About header logo is `public/images/logo.jpg` again, the same circular crop. Not used on the About page: `saloon.jpg`, `nails.jpg`, `girl.jpg`, `feet.jpg`. `dark-saloon.jpg`, `lena.jpg`, `sofia.jpg` and `amara.jpg` are now mapped, so all nine photos have a place.
 
+## Where the project stands
+
+Written at the end of the 2026-10-03 session. Read this before starting Phase 3.
+
+### Done and verified
+
+- Phase 1 in full: Next.js 16 with TypeScript strict, Tailwind v4 and shadcn/ui; every colour and font from `ui.md`; Supabase browser, server and admin clients plus `.env.example`; Playwright installed with a passing smoke test.
+- Phase 2 in full: the Landing page at `/` and the About page at `/about`, both built from their `spec.md`, sharing one sticky header, one footer, the shadcn button and the mobile sticky Book Now bar.
+- `lib/sample-content.ts` holds all placeholder content: salon details, three services, three team members and the link lists.
+- `/api/health/supabase` proves the Supabase keys work. JSON in development, 404 in production.
+- 27 Playwright tests pass, covering both pages at 375, 768 and 1280 pixels.
+- `typecheck`, `lint` and `build` pass, and the site is deployed at https://glam-slot.vercel.app/ with both pages returning 200.
+- `README.md` describes the project, the setup and what does not exist yet.
+
+### Half-done
+
+- **Nobody has looked at either page.** Every check is a Playwright assertion or a DOM measurement. Screenshots from the last run are in `/tmp/kilo/landing-shots/` and `/tmp/kilo/about-shots/`, but those are gone on reboot. A human pass against the design images is still owed.
+- **The About spec is not in git.** The uncommitted `.gitignore` change ignores `/context`, so `context/design/AboutPage/spec.md` is untracked. The Landing spec is already tracked, so it stays. Decide whether `/context` should be ignored or only the images.
+- **Every "Book Now" link 404s** because `/book` arrives in Phase 5. So does `/cancellation-policy`, and "Services", "All services" and "View services" all point at `/book`.
+- **The desktop "Find us" link does nothing.** It jumps to `#visit`, and that anchor only exists below 1024 pixels on both pages.
+- **Page metadata is still the create-next-app default.** The browser title reads "Glam-Slot" on both pages, visible on the live site.
+- **Supabase has no tables.** Only the auth and key checks are proven; reading real data through the publishable key is Phase 3 work.
+- **Content is hard-coded.** Services, hours, team and photos come from `lib/sample-content.ts` until Phase 4 replaces that with database reads.
+- **The desktop Landing hero is about 594px tall** against the ~500px estimate in the spec. Nothing is clipped.
+- **The pages are not in `app/(client)/`.** They sit at `app/page.tsx` and `app/about/page.tsx` because no route groups exist yet.
+
+### Next, in order
+
+1. Phase 3, item 1: migrations for every table in `architecture.md`, as new files under `supabase/migrations/`.
+2. Phase 3, item 2: the double-booking exclusion constraint, with a test that proves it.
+3. Phase 3, item 3: RLS on every table.
+4. Phase 3, item 4: owner login and route protection for `/dashboard`.
+5. Then Phase 4, which replaces the sample content with real reads.
+
+Before starting Phase 3, read `context/architecture.md` for the table list and the current auth implementation, and confirm the schema with the owner before writing the first migration.
+
 ## Blockers and open questions
 
 Add anything waiting on the owner or on a provider (for example WhatsApp template approval).
@@ -144,6 +180,7 @@ Add anything waiting on the owner or on a provider (for example WhatsApp templat
 
 Add the newest note at the top. Keep each to 3 lines: what changed, what was verified, what is next.
 
+- 2026-10-03, end of session: added the "Where the project stands" section with what is verified, what is half-done and the order to work in next. State verified against the repo: `git log`, the file tree and `git status`, not from memory. Nothing was built in this step, so no code checks were rerun; the last green run was 27 Playwright tests plus `typecheck`, `lint` and `build`. Still uncommitted and worth a decision: the `.gitignore` change that ignores `/context`, and the untracked About spec it leaves behind.
 - 2026-10-03, header made sticky on the owner's request: `sticky top-0 z-50` in `components/landing/site-header.tsx`, so both pages keep the nav while scrolling. Verified `typecheck`, `lint` and `build` pass and 27 Playwright tests pass, including 6 new checks that scroll 1200px at 375, 768 and 1280px and assert the header is still at the top of the viewport. Hit and fixed a stale truncated `.next/dev/types/validator.ts` that was failing the type check. Next: Phase 3, migrations.
 - 2026-10-03, Phase 2 About: `app/about/page.tsx` and `components/about/` (hero, team section, team card, contact card), built from `context/design/AboutPage/spec.md`, reusing the Landing header, footer, buttons and sticky bar. Verified `typecheck`, `lint` and `build` pass and 21 Playwright tests pass, including 10 new About checks at 375, 768 and 1280px; measured box sizes against the spec (hero image 335x192, 344x283 and 512x465, team cards 82, 150 and 115px tall, radii 24px and 32px). Next: Phase 3, migrations. Not verified by eye: nobody has looked at the page, screenshots are in `/tmp/kilo/about-shots/`.
 - 2026-10-03, Phase 2 Landing: `lib/sample-content.ts`, `components/landing/` (header, hero, service card, rituals grid, visit card, info row, footer, sticky bar) and the shadcn `button`, built from `context/design/LandingPage/spec.md`. Verified `typecheck`, `lint` and `build` pass and 11 Playwright tests pass, covering 375, 768 and 1280px for the heading text, three service names, a Book Now link, no horizontal scrollbar and the sticky bar on mobile only; screenshots are in `/tmp/kilo/landing-shots/`. Next: the About page.
