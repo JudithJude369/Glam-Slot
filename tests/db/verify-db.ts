@@ -51,8 +51,19 @@ const password = crypto.randomUUID();
 let ownerUserId = "";
 let strangerUserId = "";
 let previousOwnerId: string | null = null;
+type OwnerRow = {
+  id: number;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+};
+// The whole row, read before the first write, so the guard at the end can
+// prove the owner row came back unchanged and not merely present.
+let previousOwnerRow: OwnerRow | null = null;
 let previousSalonSettings: Record<string, unknown> | null = null;
 let previousReminderSettings: Record<string, unknown> | null = null;
+
+const OWNER_COLUMNS = ["id", "user_id", "created_at", "updated_at"] as const;
 
 const SETTINGS_COLUMNS = [
   "name",
@@ -254,18 +265,26 @@ async function run(): Promise<void> {
     throw new Error(`stranger sign in: ${strangerSignIn.error.message}`);
   }
 
+  // The snapshot is read before the first write to salon_owner in the whole
+  // run, so it is the row the guard at the end compares against. It is read
+  // through the admin client because that is the only role allowed to see the
+  // row whatever it holds.
   const existingOwner = await admin
     .from("salon_owner")
-    .select("user_id")
+    .select("id,user_id,created_at,updated_at")
     .maybeSingle();
-  previousOwnerId = existingOwner.data ? existingOwner.data.user_id : null;
+  if (existingOwner.error && existingOwner.error.code !== "PGRST116") {
+    throw new Error(`read salon_owner: ${existingOwner.error.message}`);
+  }
+  previousOwnerRow = existingOwner.data ?? null;
+  previousOwnerId = previousOwnerRow ? previousOwnerRow.user_id : null;
 
   if (previousOwnerId) {
     await admin.from("salon_owner").update({ user_id: ownerUserId }).eq("id", 1);
     record(
       "a real salon_owner row was swapped for the test and will be restored",
       true,
-      "the previous user id is held in memory and written back in the cleanup",
+      "the whole row is snapshotted and the guard at the end proves it came back",
     );
   } else {
     const claim = await owner.from("salon_owner").insert({ user_id: ownerUserId });
@@ -1214,32 +1233,107 @@ async function cleanup(): Promise<void> {
   } else {
     await admin.from("reminder_settings").delete().eq("id", 1);
   }
-  // An update with no matching row is silent, so a deleted owner row would
-  // leave the owner locked out with no error anywhere. Delete first and insert
-  // with an explicit id, and let a failure throw instead of passing quietly.
-  if (previousOwnerId) {
-    await admin.from("salon_owner").delete().eq("id", 1);
-    const restore = await admin
-      .from("salon_owner")
-      .insert({ id: 1, user_id: previousOwnerId });
-    if (restore.error) {
-      throw new Error(
-        `cleanup could not restore the salon_owner row: ${restore.error.message}. ` +
-          `Re-insert it by hand: insert into public.salon_owner (id, user_id) values (1, '${previousOwnerId}');`,
-      );
-    }
-  } else {
-    await admin.from("salon_owner").delete().eq("id", 1);
-  }
   if (ownerUserId) await admin.auth.admin.deleteUser(ownerUserId);
   if (strangerUserId) await admin.auth.admin.deleteUser(strangerUserId);
+}
+
+// Written back with every column, not just the user id, so created_at and
+// updated_at survive too. Restoring the id alone silently reset both to now(),
+// which would make the row different from the one the owner had.
+async function restoreOwnerRow(): Promise<string | null> {
+  await admin.from("salon_owner").delete().eq("id", 1);
+  if (!previousOwnerRow) return null;
+  const restore = await admin
+    .from("salon_owner")
+    .insert(pickColumns(previousOwnerRow, OWNER_COLUMNS));
+  return restore.error ? restore.error.message : null;
+}
+
+function ownerRowMatches(snapshot: OwnerRow | null, current: OwnerRow | null): boolean {
+  if (!snapshot || !current) return snapshot === current;
+  return (
+    snapshot.id === current.id &&
+    snapshot.user_id === current.user_id &&
+    Date.parse(snapshot.created_at) === Date.parse(current.created_at) &&
+    Date.parse(snapshot.updated_at) === Date.parse(current.updated_at)
+  );
+}
+
+// The last thing the script does, and it runs whatever happened above it. An
+// earlier version of the suite deleted the owner's row and reported success on
+// the next run, because the restore silently matched zero rows. This compares
+// the row against the snapshot from before the first write and fails the run,
+// with the SQL to put it back, if anything is off: missing, extra, or changed.
+async function guardOwnerRow(restoreError: string | null): Promise<void> {
+  const read = await admin
+    .from("salon_owner")
+    .select("id,user_id,created_at,updated_at")
+    .maybeSingle();
+  const current = read.error ? null : (read.data ?? null);
+
+  if (!restoreError && !read.error && ownerRowMatches(previousOwnerRow, current)) {
+    record(
+      "the salon_owner row is exactly as it was before the run",
+      true,
+      current
+        ? `id ${current.id}, user_id ${current.user_id}, created_at and updated_at unchanged`
+        : "there was no row before the run and there is none now",
+    );
+    return;
+  }
+
+  const wanted = previousOwnerRow
+    ? `id ${previousOwnerRow.id}, user_id ${previousOwnerRow.user_id}, created_at ${previousOwnerRow.created_at}, updated_at ${previousOwnerRow.updated_at}`
+    : "no row at all, so the row that was there must be deleted";
+
+  process.stdout.write(
+    [
+      "",
+      "  THE OWNER ROW WAS NOT PUT BACK. The salon_owner table is not as it was",
+      "  before this run, so the owner cannot sign in until it is repaired.",
+      "",
+      `  restore error: ${restoreError ?? "none"}`,
+      `  read error:    ${read.error?.message ?? "none"}`,
+      `  found:         ${current ? JSON.stringify(current) : "no row"}`,
+      `  expected:      ${wanted}`,
+      "",
+      "  Run this in the Supabase SQL editor to put it back:",
+      previousOwnerRow
+        ? `    delete from public.salon_owner;` +
+              `\n    insert into public.salon_owner (id, user_id, created_at, updated_at) values (${previousOwnerRow.id}, '${previousOwnerRow.user_id}', '${previousOwnerRow.created_at}', '${previousOwnerRow.updated_at}');`
+        : `    delete from public.salon_owner;`,
+      "",
+    ].join("\n"),
+  );
+
+  record("the salon_owner row is exactly as it was before the run", false, "changed by this run, see the SQL above");
+}
+
+/**
+ * Cleanup, then the guard, and the guard runs even if cleanup threw. A throw
+ * from here would skip the summary and the exit code, which is how a broken
+ * restore used to look like a clean run.
+ */
+async function finish(): Promise<void> {
+  let restoreError: string | null = null;
+  try {
+    await cleanup();
+  } catch (failure: unknown) {
+    record("the cleanup finished", false, String(failure));
+  }
+  try {
+    restoreError = await restoreOwnerRow();
+  } catch (failure: unknown) {
+    restoreError = String(failure);
+  }
+  await guardOwnerRow(restoreError);
 }
 
 run()
   .catch((failure: unknown) => {
     record("the verification script finished", false, String(failure));
   })
-  .finally(cleanup)
+  .finally(finish)
   .then(() => {
     const failed = checks.filter((check) => !check.ok);
     process.stdout.write(
