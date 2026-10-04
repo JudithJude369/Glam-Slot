@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 function requiredEnv(): { url: string; anonKey: string; serviceKey: string } {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,8 +20,10 @@ const admin = createClient(env.url, env.serviceKey, {
 });
 
 const SERVICE_ID = "00000000-0000-0000-0000-0000000000a1";
+const INACTIVE_SERVICE_ID = "00000000-0000-0000-0000-0000000000a2";
 const STAFF_ID = "00000000-0000-0000-0000-0000000000b1";
 const OTHER_STAFF_ID = "00000000-0000-0000-0000-0000000000b2";
+const HOURS_ID = "00000000-0000-0000-0000-0000000000c1";
 const SLOT = "2027-03-01T10:00:00Z";
 const RACE_SLOT = "2027-03-01T14:00:00Z";
 
@@ -48,8 +50,9 @@ const password = crypto.randomUUID();
 
 let ownerUserId = "";
 let strangerUserId = "";
-let previousOwnerEmail: string | null = null;
+let previousOwnerId: string | null = null;
 let previousSalonSettings: Record<string, unknown> | null = null;
+let previousReminderSettings: Record<string, unknown> | null = null;
 
 const SETTINGS_COLUMNS = [
   "name",
@@ -63,11 +66,92 @@ const SETTINGS_COLUMNS = [
   "hold_minutes",
 ] as const;
 
+const REMINDER_SETTINGS_COLUMNS = [
+  "confirmation_enabled",
+  "confirmation_offset_minutes",
+  "reminder_24h_enabled",
+  "reminder_24h_hours_before",
+  "reminder_2h_enabled",
+  "reminder_2h_hours_before",
+] as const;
+
+function pickColumns(
+  row: Record<string, unknown>,
+  columns: readonly string[],
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const column of columns) patch[column] = row[column];
+  return patch;
+}
+
+type Attempt = { code: string; message: string; rows: number };
+
+type Filter = { column: string; value: unknown };
+
+async function attempt(
+  client: SupabaseClient,
+  operation: "select" | "insert" | "update" | "delete",
+  table: string,
+  options: { row?: Record<string, unknown>; filters?: Filter[] } = {},
+): Promise<Attempt> {
+  const base = client.from(table);
+  const scoped = <T extends { match: (conditions: Record<string, unknown>) => T }>(
+    start: T,
+  ): T => {
+    const conditions: Record<string, unknown> = {};
+    for (const filter of options.filters ?? []) {
+      conditions[filter.column] = filter.value;
+    }
+    return Object.keys(conditions).length > 0 ? start.match(conditions) : start;
+  };
+  const result =
+    operation === "select"
+      ? await scoped(base.select("*"))
+      : operation === "insert"
+        ? await base.insert(options.row ?? {}).select()
+        : operation === "update"
+          ? await scoped(base.update(options.row ?? {})).select()
+          : await scoped(base.delete()).select();
+  return {
+    code: errorCode(result.error),
+    message: errorText(result.error),
+    rows: result.data?.length ?? 0,
+  };
+}
+
+function expectDenied(name: string, result: Attempt): void {
+  record(name, result.code === "42501", `code ${result.code}: ${result.message}`);
+}
+
+function expectBlockedByPolicy(name: string, result: Attempt): void {
+  record(
+    name,
+    result.code === "none" && result.rows === 0,
+    `code ${result.code}, ${result.rows} row(s) matched, the policy filtered them out`,
+  );
+}
+
+function expectAllowed(name: string, result: Attempt, minRows = 1): void {
+  record(
+    name,
+    result.code === "none" && result.rows >= minRows,
+    `code ${result.code}, ${result.rows} row(s)`,
+  );
+}
+
+function expectViolation(name: string, result: Attempt, code: string): void {
+  record(name, result.code === code, `code ${result.code}, expected ${code}`);
+}
+
 async function wipeSeed(): Promise<void> {
   await admin.from("bookings").delete().eq("service_id", SERVICE_ID);
+  await admin.from("staff_hours").delete().eq("id", HOURS_ID);
   await admin.from("staff_services").delete().eq("service_id", SERVICE_ID);
   await admin.from("staff").delete().in("id", [STAFF_ID, OTHER_STAFF_ID]);
-  await admin.from("services").delete().eq("id", SERVICE_ID);
+  await admin
+    .from("services")
+    .delete()
+    .in("id", [SERVICE_ID, INACTIVE_SERVICE_ID]);
 }
 
 async function seedCatalog(): Promise<void> {
@@ -170,22 +254,27 @@ async function run(): Promise<void> {
     throw new Error(`stranger sign in: ${strangerSignIn.error.message}`);
   }
 
-  const existingOwner = await admin.from("salon_owner").select("email").maybeSingle();
-  previousOwnerEmail = existingOwner.data ? existingOwner.data.email : null;
+  const existingOwner = await admin
+    .from("salon_owner")
+    .select("user_id")
+    .maybeSingle();
+  previousOwnerId = existingOwner.data ? existingOwner.data.user_id : null;
 
-  if (previousOwnerEmail) {
-    await admin.from("salon_owner").update({ email: ownerEmail }).eq("id", 1);
+  if (previousOwnerId) {
+    await admin.from("salon_owner").update({ user_id: ownerUserId }).eq("id", 1);
     record(
       "a real salon_owner row was swapped for the test and will be restored",
       true,
-      `previous owner email is held in memory and written back in the cleanup`,
+      "the previous user id is held in memory and written back in the cleanup",
     );
   } else {
-    const claim = await owner.from("salon_owner").insert({ email: ownerEmail });
+    const claim = await owner.from("salon_owner").insert({ user_id: ownerUserId });
     record(
       "the signed-in owner claims salon_owner",
       !claim.error,
-      claim.error ? claim.error.message : "insert accepted, checked against the JWT email",
+      claim.error
+        ? claim.error.message
+        : "insert accepted, checked against the verified JWT subject",
     );
   }
 
@@ -223,11 +312,11 @@ async function run(): Promise<void> {
       : `${publicSettings.data?.length ?? 0} row(s)`,
   );
 
-  const anonOwnerEmail = await anon.from("salon_owner").select("email");
+  const anonOwnerRows = await anon.from("salon_owner").select("user_id");
   record(
     "anon cannot read salon_owner",
-    errorCode(anonOwnerEmail.error) === "42501",
-    `code ${errorCode(anonOwnerEmail.error)}: ${errorText(anonOwnerEmail.error)}`,
+    errorCode(anonOwnerRows.error) === "42501",
+    `code ${errorCode(anonOwnerRows.error)}: ${errorText(anonOwnerRows.error)}`,
   );
 
   const anonBookings = await anon.from("bookings").select("id");
@@ -438,21 +527,707 @@ async function run(): Promise<void> {
       ? ownerRead.error.message
       : `${ownerRead.data?.length ?? 0} row(s)`,
   );
+
+  const strangerUpdateBooking = await attempt(stranger, "update", "bookings", {
+    row: { flagged: true },
+    filters: [{ column: "token_hash", value: "6".repeat(64) }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no booking",
+    strangerUpdateBooking,
+  );
+
+  const strangerDeleteBooking = await attempt(stranger, "delete", "bookings", {
+    filters: [{ column: "token_hash", value: "6".repeat(64) }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger deletes no booking",
+    strangerDeleteBooking,
+  );
+
+  const ownerUpdateBooking = await attempt(owner, "update", "bookings", {
+    row: { flagged: true, flag_reason: "checked by db:verify" },
+    filters: [{ column: "token_hash", value: "6".repeat(64) }],
+  });
+  expectAllowed("the owner updates a booking", ownerUpdateBooking);
+
+  const ownerDeleteBooking = await attempt(owner, "delete", "bookings", {
+    filters: [{ column: "token_hash", value: "5".repeat(64) }],
+  });
+  expectAllowed("the owner deletes a booking", ownerDeleteBooking);
+
+  const inactiveService = await attempt(owner, "insert", "services", {
+    row: {
+      id: INACTIVE_SERVICE_ID,
+      name: "Verify Retired Service",
+      duration_minutes: 30,
+      price_kobo: 500000,
+      deposit_kobo: 150000,
+      is_active: false,
+    },
+  });
+  expectAllowed("the owner inserts a deactivated service", inactiveService);
+
+  const anonActiveService = await attempt(anon, "select", "services", {
+    filters: [{ column: "id", value: SERVICE_ID }],
+  });
+  expectAllowed("anon reads the active service", anonActiveService);
+
+  const anonInactiveService = await attempt(anon, "select", "services", {
+    filters: [{ column: "id", value: INACTIVE_SERVICE_ID }],
+  });
+  record(
+    "anon cannot read a deactivated service",
+    anonInactiveService.code === "none" && anonInactiveService.rows === 0,
+    `code ${anonInactiveService.code}, ${anonInactiveService.rows} row(s)`,
+  );
+
+  const ownerInactiveService = await attempt(owner, "select", "services", {
+    filters: [{ column: "id", value: INACTIVE_SERVICE_ID }],
+  });
+  expectAllowed("the owner reads a deactivated service", ownerInactiveService);
+
+  const strangerUpdateService = await attempt(stranger, "update", "services", {
+    row: { price_kobo: 1 },
+    filters: [{ column: "id", value: SERVICE_ID }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no service",
+    strangerUpdateService,
+  );
+
+  const ownerUpdateService = await attempt(owner, "update", "services", {
+    row: { price_kobo: 2100000 },
+    filters: [{ column: "id", value: SERVICE_ID }],
+  });
+  expectAllowed("the owner updates a service", ownerUpdateService);
+
+  const depositOverPrice = await attempt(admin, "insert", "services", {
+    row: {
+      name: "Verify Bad Deposit",
+      duration_minutes: 30,
+      price_kobo: 100000,
+      deposit_kobo: 200000,
+    },
+  });
+  expectViolation(
+    "a deposit larger than the price is refused",
+    depositOverPrice,
+    "23514",
+  );
+
+  const ownerInsertLink = await attempt(owner, "insert", "staff_services", {
+    row: { staff_id: OTHER_STAFF_ID, service_id: INACTIVE_SERVICE_ID },
+  });
+  expectAllowed(
+    "the owner links a staff member to a deactivated service",
+    ownerInsertLink,
+  );
+
+  const anonHiddenLink = await attempt(anon, "select", "staff_services", {
+    filters: [
+      { column: "staff_id", value: OTHER_STAFF_ID },
+      { column: "service_id", value: INACTIVE_SERVICE_ID },
+    ],
+  });
+  record(
+    "anon cannot read a link to a deactivated service",
+    anonHiddenLink.code === "none" && anonHiddenLink.rows === 0,
+    `code ${anonHiddenLink.code}, ${anonHiddenLink.rows} row(s)`,
+  );
+
+  const anonVisibleLink = await attempt(anon, "select", "staff_services", {
+    filters: [{ column: "service_id", value: SERVICE_ID }],
+  });
+  expectAllowed("anon reads the links to the active service", anonVisibleLink);
+
+  const strangerUpdateLink = await attempt(stranger, "update", "staff_services", {
+    filters: [{ column: "service_id", value: SERVICE_ID }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no staff service",
+    strangerUpdateLink,
+  );
+
+  const ownerUpdateLink = await attempt(owner, "update", "staff_services", {
+    row: { staff_id: OTHER_STAFF_ID },
+    filters: [
+      { column: "staff_id", value: OTHER_STAFF_ID },
+      { column: "service_id", value: INACTIVE_SERVICE_ID },
+    ],
+  });
+  expectAllowed("the owner updates a staff service link", ownerUpdateLink);
+
+  const ownerDeleteLink = await attempt(owner, "delete", "staff_services", {
+    filters: [
+      { column: "staff_id", value: OTHER_STAFF_ID },
+      { column: "service_id", value: INACTIVE_SERVICE_ID },
+    ],
+  });
+  expectAllowed("the owner deletes a staff service link", ownerDeleteLink);
+
+  const strangerDeleteLink = await attempt(stranger, "delete", "staff_services", {
+    filters: [{ column: "service_id", value: SERVICE_ID }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger deletes no staff service",
+    strangerDeleteLink,
+  );
+
+  const ownerInsertHours = await attempt(owner, "insert", "staff_hours", {
+    row: {
+      id: HOURS_ID,
+      staff_id: STAFF_ID,
+      weekday: 1,
+      opens_at: "09:00:00",
+      closes_at: "17:00:00",
+    },
+  });
+  expectAllowed("the owner inserts an opening hours row", ownerInsertHours);
+
+  const anonHours = await attempt(anon, "select", "staff_hours", {
+    filters: [{ column: "id", value: HOURS_ID }],
+  });
+  expectAllowed("anon reads the opening hours of active staff", anonHours);
+
+  const closedBeforeOpening = await attempt(admin, "insert", "staff_hours", {
+    row: {
+      staff_id: STAFF_ID,
+      weekday: 2,
+      opens_at: "17:00:00",
+      closes_at: "09:00:00",
+    },
+  });
+  expectViolation(
+    "hours that close before they open are refused",
+    closedBeforeOpening,
+    "23514",
+  );
+
+  const orphanHours = await attempt(admin, "insert", "staff_hours", {
+    row: {
+      staff_id: "00000000-0000-0000-0000-0000000000ff",
+      weekday: 2,
+      opens_at: "09:00:00",
+      closes_at: "17:00:00",
+    },
+  });
+  expectViolation(
+    "hours for a staff member that does not exist are refused",
+    orphanHours,
+    "23503",
+  );
+
+  const strangerUpdateHours = await attempt(stranger, "update", "staff_hours", {
+    row: { closes_at: "20:00:00" },
+    filters: [{ column: "id", value: HOURS_ID }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no opening hours",
+    strangerUpdateHours,
+  );
+
+  const ownerUpdateHours = await attempt(owner, "update", "staff_hours", {
+    row: { closes_at: "18:00:00" },
+    filters: [{ column: "id", value: HOURS_ID }],
+  });
+  expectAllowed("the owner updates opening hours", ownerUpdateHours);
+
+  const ownerDeleteHours = await attempt(owner, "delete", "staff_hours", {
+    filters: [{ column: "id", value: HOURS_ID }],
+  });
+  expectAllowed("the owner deletes opening hours", ownerDeleteHours);
+
+  const attachment = await admin
+    .from("bookings")
+    .select("id")
+    .eq("token_hash", "6".repeat(64))
+    .maybeSingle();
+  if (!attachment.data) {
+    throw new Error("no seeded booking to attach a payment and reminders to");
+  }
+  const bookingId: string = attachment.data.id;
+
+  const anonPayments = await attempt(anon, "select", "payments");
+  expectDenied("anon cannot read payments", anonPayments);
+
+  const anonInsertPayment = await attempt(anon, "insert", "payments", {
+    row: {
+      booking_id: bookingId,
+      paystack_reference: "anon-reference",
+      amount_kobo: 600000,
+    },
+  });
+  expectDenied("anon cannot insert a payment", anonInsertPayment);
+
+  const strangerPayments = await attempt(stranger, "select", "payments", {
+    filters: [{ column: "booking_id", value: bookingId }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger reads no payments",
+    strangerPayments,
+  );
+
+  const strangerInsertPayment = await attempt(stranger, "insert", "payments", {
+    row: {
+      booking_id: bookingId,
+      paystack_reference: "stranger-reference",
+      amount_kobo: 600000,
+    },
+  });
+  expectDenied("a signed-in stranger cannot insert a payment", strangerInsertPayment);
+
+  const strangerUpdatePayment = await attempt(stranger, "update", "payments", {
+    row: { status: "succeeded" },
+    filters: [{ column: "booking_id", value: bookingId }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no payment",
+    strangerUpdatePayment,
+  );
+
+  const strangerDeletePayment = await attempt(stranger, "delete", "payments", {
+    filters: [{ column: "booking_id", value: bookingId }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger deletes no payment",
+    strangerDeletePayment,
+  );
+
+  const ownerInsertPayment = await attempt(owner, "insert", "payments", {
+    row: {
+      booking_id: bookingId,
+      paystack_reference: "verify-reference-1",
+      amount_kobo: 600000,
+      raw_event: { event: "charge.success", source: "db:verify" },
+    },
+  });
+  expectAllowed("the owner inserts a payment", ownerInsertPayment);
+
+  const duplicateReference = await attempt(owner, "insert", "payments", {
+    row: {
+      booking_id: bookingId,
+      paystack_reference: "verify-reference-1",
+      amount_kobo: 600000,
+    },
+  });
+  expectViolation(
+    "a repeated Paystack reference is refused, which is what makes the webhook idempotent",
+    duplicateReference,
+    "23505",
+  );
+
+  const zeroAmount = await attempt(owner, "insert", "payments", {
+    row: {
+      booking_id: bookingId,
+      paystack_reference: "verify-reference-zero",
+      amount_kobo: 0,
+    },
+  });
+  expectViolation("a payment of zero kobo is refused", zeroAmount, "23514");
+
+  const orphanPayment = await attempt(owner, "insert", "payments", {
+    row: {
+      booking_id: "00000000-0000-0000-0000-0000000000ff",
+      paystack_reference: "verify-reference-orphan",
+      amount_kobo: 600000,
+    },
+  });
+  expectViolation(
+    "a payment for a booking that does not exist is refused",
+    orphanPayment,
+    "23503",
+  );
+
+  const ownerUpdatePayment = await attempt(owner, "update", "payments", {
+    row: { status: "succeeded", verified_at: "2027-03-01T10:05:00Z" },
+    filters: [{ column: "paystack_reference", value: "verify-reference-1" }],
+  });
+  expectAllowed("the owner updates a payment", ownerUpdatePayment);
+
+  const ownerDeletePayment = await attempt(owner, "delete", "payments", {
+    filters: [{ column: "paystack_reference", value: "verify-reference-1" }],
+  });
+  expectAllowed("the owner deletes a payment", ownerDeletePayment);
+
+  const anonReminders = await attempt(anon, "select", "reminders");
+  expectDenied("anon cannot read reminders", anonReminders);
+
+  const strangerReminders = await attempt(stranger, "select", "reminders", {
+    filters: [{ column: "booking_id", value: bookingId }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger reads no reminders",
+    strangerReminders,
+  );
+
+  const strangerInsertReminder = await attempt(stranger, "insert", "reminders", {
+    row: {
+      booking_id: bookingId,
+      kind: "confirmation",
+      scheduled_for: "2027-03-01T10:05:00Z",
+    },
+  });
+  expectDenied(
+    "a signed-in stranger cannot insert a reminder",
+    strangerInsertReminder,
+  );
+
+  const strangerUpdateReminder = await attempt(stranger, "update", "reminders", {
+    row: { status: "sent" },
+    filters: [{ column: "booking_id", value: bookingId }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no reminder",
+    strangerUpdateReminder,
+  );
+
+  const ownerInsertReminder = await attempt(owner, "insert", "reminders", {
+    row: {
+      booking_id: bookingId,
+      kind: "confirmation",
+      scheduled_for: "2027-03-01T10:05:00Z",
+    },
+  });
+  expectAllowed("the owner inserts a reminder", ownerInsertReminder);
+
+  const duplicateKind = await attempt(owner, "insert", "reminders", {
+    row: {
+      booking_id: bookingId,
+      kind: "confirmation",
+      scheduled_for: "2027-03-01T11:05:00Z",
+    },
+  });
+  expectViolation(
+    "a second reminder of the same kind for one booking is refused",
+    duplicateKind,
+    "23505",
+  );
+
+  const unknownKind = await attempt(owner, "insert", "reminders", {
+    row: {
+      booking_id: bookingId,
+      kind: "sms",
+      scheduled_for: "2027-03-01T11:05:00Z",
+    },
+  });
+  expectViolation("an unknown reminder kind is refused", unknownKind, "23514");
+
+  const ownerUpdateReminder = await attempt(owner, "update", "reminders", {
+    row: { scheduled_for: "2027-03-01T10:10:00Z" },
+    filters: [{ column: "booking_id", value: bookingId }],
+  });
+  expectAllowed("the owner reschedules a reminder", ownerUpdateReminder);
+
+  const strangerDeleteReminder = await attempt(stranger, "delete", "reminders", {
+    filters: [{ column: "booking_id", value: bookingId }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger deletes no reminder",
+    strangerDeleteReminder,
+  );
+
+  const ownerDeleteReminder = await attempt(owner, "delete", "reminders", {
+    filters: [{ column: "booking_id", value: bookingId }],
+  });
+  expectAllowed("the owner deletes a reminder", ownerDeleteReminder);
+
+  const existingReminderSettings = await admin
+    .from("reminder_settings")
+    .select("*")
+    .maybeSingle();
+  previousReminderSettings = existingReminderSettings.data;
+
+  const anonReminderSettings = await attempt(anon, "select", "reminder_settings");
+  expectDenied("anon cannot read reminder settings", anonReminderSettings);
+
+  const strangerReminderSettings = await attempt(
+    stranger,
+    "select",
+    "reminder_settings",
+  );
+  expectBlockedByPolicy(
+    "a signed-in stranger reads no reminder settings",
+    strangerReminderSettings,
+  );
+
+  const strangerUpdateReminderSettings = await attempt(
+    stranger,
+    "update",
+    "reminder_settings",
+    {
+      row: { reminder_24h_hours_before: 12 },
+      filters: [{ column: "id", value: 1 }],
+    },
+  );
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no reminder settings",
+    strangerUpdateReminderSettings,
+  );
+
+  if (previousReminderSettings) {
+    const ownerUpdateReminderSettings = await attempt(
+      owner,
+      "update",
+      "reminder_settings",
+      { row: { reminder_24h_hours_before: 30 } },
+    );
+    expectAllowed(
+      "the owner updates reminder settings",
+      ownerUpdateReminderSettings,
+    );
+  } else {
+    const ownerInsertReminderSettings = await attempt(
+      owner,
+      "insert",
+      "reminder_settings",
+      { row: { confirmation_offset_minutes: 0 } },
+    );
+    expectAllowed(
+      "the owner inserts reminder settings",
+      ownerInsertReminderSettings,
+    );
+  }
+
+  const secondReminderSettings = await attempt(
+    owner,
+    "insert",
+    "reminder_settings",
+    { row: { confirmation_offset_minutes: 5 } },
+  );
+  expectViolation(
+    "a second reminder settings row is refused, the table holds one",
+    secondReminderSettings,
+    "23505",
+  );
+
+  const ownerDeleteReminderSettings = await attempt(owner, "delete", "reminder_settings", {
+    filters: [{ column: "id", value: 1 }],
+  });
+  expectAllowed("the owner deletes reminder settings", ownerDeleteReminderSettings);
+
+  if (previousReminderSettings) {
+    const ownerRestoreReminderSettings = await attempt(
+      owner,
+      "insert",
+      "reminder_settings",
+      { row: pickColumns(previousReminderSettings, REMINDER_SETTINGS_COLUMNS) },
+    );
+    expectAllowed(
+      "the owner puts the reminder settings row back",
+      ownerRestoreReminderSettings,
+    );
+  }
+
+  const strangerOwnerRows = await attempt(stranger, "select", "salon_owner");
+  expectBlockedByPolicy(
+    "a signed-in stranger reads no owner row",
+    strangerOwnerRows,
+  );
+
+  const strangerUpdateOwner = await attempt(stranger, "update", "salon_owner", {
+    row: { user_id: strangerUserId },
+    filters: [{ column: "id", value: 1 }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no owner row",
+    strangerUpdateOwner,
+  );
+
+  const strangerDeleteOwner = await attempt(stranger, "delete", "salon_owner", {
+    filters: [{ column: "id", value: 1 }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger deletes no owner row",
+    strangerDeleteOwner,
+  );
+
+  const strangerUpdateStaff = await attempt(stranger, "update", "staff", {
+    row: { name: "Verify Stranger" },
+    filters: [{ column: "id", value: STAFF_ID }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no staff member",
+    strangerUpdateStaff,
+  );
+
+  const strangerDeleteStaff = await attempt(stranger, "delete", "staff", {
+    filters: [{ column: "id", value: STAFF_ID }],
+  });
+  expectBlockedByPolicy(
+    "a signed-in stranger deletes no staff member",
+    strangerDeleteStaff,
+  );
+
+  const strangerUpdateSalonSettings = await attempt(
+    stranger,
+    "update",
+    "salon_settings",
+    {
+      row: { name: "Verify Stranger" },
+      filters: [{ column: "id", value: 1 }],
+    },
+  );
+  expectBlockedByPolicy(
+    "a signed-in stranger updates no salon settings",
+    strangerUpdateSalonSettings,
+  );
+
+  const strangerDeleteSalonSettings = await attempt(
+    stranger,
+    "delete",
+    "salon_settings",
+    { filters: [{ column: "id", value: 1 }] },
+  );
+  expectBlockedByPolicy(
+    "a signed-in stranger deletes no salon settings",
+    strangerDeleteSalonSettings,
+  );
+
+  const PUBLIC_TABLES: {
+    table: string;
+    insertRow: Record<string, unknown>;
+    patchRow: Record<string, unknown>;
+    filters: Filter[];
+  }[] = [
+    {
+      table: "services",
+      insertRow: {
+        name: "Verify Anon",
+        duration_minutes: 30,
+        price_kobo: 100000,
+        deposit_kobo: 30000,
+      },
+      patchRow: { price_kobo: 1 },
+      filters: [{ column: "id", value: SERVICE_ID }],
+    },
+    {
+      table: "staff",
+      insertRow: { name: "Verify Anon" },
+      patchRow: { name: "Verify Anon" },
+      filters: [{ column: "id", value: STAFF_ID }],
+    },
+    {
+      table: "staff_services",
+      insertRow: { staff_id: STAFF_ID, service_id: SERVICE_ID },
+      patchRow: { staff_id: OTHER_STAFF_ID },
+      filters: [{ column: "staff_id", value: STAFF_ID }],
+    },
+    {
+      table: "staff_hours",
+      insertRow: {
+        staff_id: STAFF_ID,
+        weekday: 3,
+        opens_at: "09:00:00",
+        closes_at: "10:00:00",
+      },
+      patchRow: { closes_at: "11:00:00" },
+      filters: [{ column: "id", value: HOURS_ID }],
+    },
+    {
+      table: "salon_settings",
+      insertRow: {
+        name: "Verify Anon",
+        address: "Verify Anon",
+        whatsapp_phone: "+2348031234567",
+      },
+      patchRow: { name: "Verify Anon" },
+      filters: [{ column: "id", value: 1 }],
+    },
+  ];
+
+  for (const target of PUBLIC_TABLES) {
+    expectDenied(
+      `anon cannot insert into ${target.table}`,
+      await attempt(anon, "insert", target.table, { row: target.insertRow }),
+    );
+    expectDenied(
+      `anon cannot update ${target.table}`,
+      await attempt(anon, "update", target.table, {
+        row: target.patchRow,
+        filters: target.filters,
+      }),
+    );
+    expectDenied(
+      `anon cannot delete from ${target.table}`,
+      await attempt(anon, "delete", target.table, { filters: target.filters }),
+    );
+  }
+
+  if (previousSalonSettings) {
+    const ownerDeleteSettings = await attempt(owner, "delete", "salon_settings");
+    expectAllowed("the owner deletes salon settings", ownerDeleteSettings);
+
+    const ownerRestoreSettings = await attempt(owner, "insert", "salon_settings", {
+      row: pickColumns(previousSalonSettings, SETTINGS_COLUMNS),
+    });
+    expectAllowed(
+      "the owner puts the salon settings row back",
+      ownerRestoreSettings,
+    );
+  }
+
+  const ownerDeleteOwner = await attempt(owner, "delete", "salon_owner", {
+    filters: [{ column: "id", value: 1 }],
+  });
+  expectAllowed("the owner deletes the owner row", ownerDeleteOwner);
+
+  // The pre-existing row belongs to the real owner, not to the signed-in test
+  // owner, so the insert policy with check (user_id = auth.uid()) must refuse
+  // it. The earlier version of this check asserted the opposite and lost the
+  // real row: the insert was refused with 42501 and the cleanup could not put
+  // it back. It is a security check now, and the restore goes through the
+  // admin client, which is the only client allowed to write a row for another
+  // user id.
+  if (previousOwnerId) {
+    const ownerClaimsForeign = await attempt(owner, "insert", "salon_owner", {
+      row: { user_id: previousOwnerId },
+    });
+    expectViolation(
+      "the owner cannot claim the owner row for another user",
+      ownerClaimsForeign,
+      "42501",
+    );
+
+    const adminRestoreOwner = await attempt(admin, "insert", "salon_owner", {
+      row: { id: 1, user_id: previousOwnerId },
+    });
+    expectAllowed("the real owner row is restored", adminRestoreOwner);
+  }
 }
 
 async function cleanup(): Promise<void> {
   await wipeSeed();
   if (previousSalonSettings) {
-    const patch: Record<string, unknown> = {};
-    for (const column of SETTINGS_COLUMNS) {
-      patch[column] = previousSalonSettings[column];
-    }
-    await admin.from("salon_settings").update(patch).eq("id", 1);
+    await admin
+      .from("salon_settings")
+      .update(pickColumns(previousSalonSettings, SETTINGS_COLUMNS))
+      .eq("id", 1);
   } else {
     await admin.from("salon_settings").delete().eq("id", 1);
   }
-  if (previousOwnerEmail) {
-    await admin.from("salon_owner").update({ email: previousOwnerEmail }).eq("id", 1);
+  if (previousReminderSettings) {
+    await admin
+      .from("reminder_settings")
+      .update(pickColumns(previousReminderSettings, REMINDER_SETTINGS_COLUMNS))
+      .eq("id", 1);
+  } else {
+    await admin.from("reminder_settings").delete().eq("id", 1);
+  }
+  // An update with no matching row is silent, so a deleted owner row would
+  // leave the owner locked out with no error anywhere. Delete first and insert
+  // with an explicit id, and let a failure throw instead of passing quietly.
+  if (previousOwnerId) {
+    await admin.from("salon_owner").delete().eq("id", 1);
+    const restore = await admin
+      .from("salon_owner")
+      .insert({ id: 1, user_id: previousOwnerId });
+    if (restore.error) {
+      throw new Error(
+        `cleanup could not restore the salon_owner row: ${restore.error.message}. ` +
+          `Re-insert it by hand: insert into public.salon_owner (id, user_id) values (1, '${previousOwnerId}');`,
+      );
+    }
   } else {
     await admin.from("salon_owner").delete().eq("id", 1);
   }
