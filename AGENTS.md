@@ -47,17 +47,17 @@ Do not assume the paths below. Look at the file tree first, and `context/archite
 
 When a context file and the code disagree, trust the code, then fix the context file.
 
-| Topic                             | Source of truth                                 |
-| --------------------------------- | ----------------------------------------------- |
-| Database schema, RLS, constraints | `supabase/migrations/`                          |
-| Environment variables             | `.env.example`                                  |
-| UI patterns                       | existing components in `components/`            |
-| API behavior                      | existing routes in `app/api/`                   |
-| Owner authentication              | the existing auth implementation and middleware |
-| Validation                        | Zod schemas in `lib/`                           |
-| Colours, fonts, type scale        | `context/ui.md`                                 |
+| Topic                             | Source of truth                                                             |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| Database schema, RLS, constraints | `supabase/migrations/`                                                      |
+| Environment variables             | `.env.example`                                                              |
+| UI patterns                       | existing components in `components/`                                        |
+| API behavior                      | existing routes in `app/api/`                                               |
+| Owner authentication              | the existing auth implementation and middleware                             |
+| Validation                        | Zod schemas in `lib/`                                                       |
+| Colours, fonts, type scale        | `context/ui.md`                                                             |
 | Page layouts                      | `context/design/<PageName>/spec.md` (the images beside it are the original) |
-| Paystack and WhatsApp behavior    | current official provider docs, not memory      |
+| Paystack and WhatsApp behavior    | current official provider docs, not memory                                  |
 
 ## 4. How to work
 
@@ -70,6 +70,7 @@ When a context file and the code disagree, trust the code, then fix the context 
 7. `spec.md` is the source for a page's layout. Mobile (375px) is the reference; Tablet and Desktop show how the layout changes at larger widths. If `spec.md` is missing, stop and tell me: "No spec.md for <PageName>. Please get one written from the design images." Do not invent a layout, and do not start a different page without asking me. Before coding, list which items from the spec's "Unclear" section you plan to assume.
 8. If a business rule is unclear or missing, ask. Do not guess.
 9. When done, update `context/progress-tracker.md`.
+10. Tick an item yourself as soon as your own checks prove it. If the last proof needs something only I can do (a real sign-in, a dashboard setting, a key), do not leave a plain empty box. Write 'built, waiting for owner check' next to the item in the tracker and tell me the exact steps to do, then wait. Never tick an item you could not verify.
 
 ## 5. Context index: read only what the task needs
 
@@ -107,3 +108,4 @@ Final report: what changed, what you verified and how, and anything you could no
 - WhatsApp reminders use pre-approved templates only. Do not change template wording in code.
 - Validate every input boundary with Zod: forms, API routes, webhooks.
 - Do not build features outside `context/project-overview.md`.
+  Add one rule to AGENTS.md, in section 4 right after item 9:
