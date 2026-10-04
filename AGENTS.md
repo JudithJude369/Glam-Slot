@@ -108,4 +108,3 @@ Final report: what changed, what you verified and how, and anything you could no
 - WhatsApp reminders use pre-approved templates only. Do not change template wording in code.
 - Validate every input boundary with Zod: forms, API routes, webhooks.
 - Do not build features outside `context/project-overview.md`.
-  Add one rule to AGENTS.md, in section 4 right after item 9:
