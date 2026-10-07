@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { assertTestDatabase } from "./lib/test-guard";
 
 const baseURL = "http://localhost:3000";
 
@@ -19,4 +20,5 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
   },
+  globalSetup: "./tests/global-setup.ts",
 });

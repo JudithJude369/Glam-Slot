@@ -96,15 +96,24 @@ A task is never done just because the code was written. Before reporting complet
 
 Final report: what changed, what you verified and how, and anything you could not verify.
 
-## 7. Hard rules
+## 7. Checks after every change
+
+1. Run `npx tsc --noEmit` and fix any errors.
+2. If the change touched the database, migrations or Server Actions,
+   run `npm run db:verify:test`.
+3. Report the results. Do not say "done" without them.
+4. End with a list of manual checks for the owner.
+
+## 8. Hard rules
 
 - Never edit a migration that has already been applied. Add a new one.
 - Never expose the Supabase service-role key or any secret to the client. Never commit `.env`.
 - Verify the Paystack webhook signature. Make webhook handling idempotent.
 - Secrets: never invent or fill in real keys. Keep `.env.example` up to date (names only, empty values). Real values go in `.env.local`, which must be git-ignored.
 - When a task needs a key you do not have, stop and tell me: the variable name, where to get it, and where to paste it. Then wait.
-- Check the current Paystack and WhatsApp docs before writing integration code. If a GitMCP server is connected, use it first for library docs, then the official docs.
+- Check the current Paystack and WhatsApp docs before writing integration code. If a GitMCP server is connected, use it first for the official docs.
 - When you use docs, say which server and page you used. Check that it matches the version installed in `package.json`.
 - WhatsApp reminders use pre-approved templates only. Do not change template wording in code.
 - Validate every input boundary with Zod: forms, API routes, webhooks.
 - Do not build features outside `context/project-overview.md`.
+- Tests and verification scripts run only against glamslot-test using .env.test. Never use .env.local in a test.

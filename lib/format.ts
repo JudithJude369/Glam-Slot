@@ -27,3 +27,15 @@ export function formatStaffStatusText(hours: StaffHours[] | null): string {
   return `Day off ${closedDays.map((h) => WEEKDAYS[h.weekday]).join(", ")}`;
 }
 
+export function formatStaffHoursText(hours: StaffHours[]) {
+  const openDays = hours.filter((h) => !h.is_closed);
+  if (openDays.length === 0) return "Closed all week";
+  const first = openDays[0];
+  const last = openDays[openDays.length - 1];
+  const sameDay = first.weekday === last.weekday;
+  if (sameDay) {
+    return `${WEEKDAYS[first.weekday]} ${first.opens_at.slice(0, 5)}–${last.closes_at.slice(0, 5)}`;
+  }
+  return `${WEEKDAYS[first.weekday]}–${WEEKDAYS[last.weekday]} ${first.opens_at.slice(0, 5)}–${last.closes_at.slice(0, 5)}`;
+}
+

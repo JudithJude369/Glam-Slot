@@ -1,4 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { assertTestDatabase } from "../../lib/test-guard";
+
+assertTestDatabase(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 function requiredEnv(): { url: string; anonKey: string; serviceKey: string } {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
