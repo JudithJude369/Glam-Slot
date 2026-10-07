@@ -32,9 +32,9 @@
 | Payments and webhooks | Paystack test mode. Bad signature rejected. Same event twice handled once. Wrong amount not confirmed. |
 | Messaging | Uses the fake provider in tests. Cancelled bookings send nothing. Reschedule updates reminder times. |
 | UI | Checked at 375px and desktop. Loading, empty and error states exist. |
-| Booking, cancel, reschedule | Matching Playwright test added or updated. |
+| Booking, cancel, reschedule | Matching Playwright test added or updated (paused). |
 
-## Playwright flows that must always pass
+## Playwright flows that must always pass (paused)
 1. Book a slot, pay the deposit in test mode, land on a confirmed booking.
 2. Two simultaneous bookings for the same staff and slot: exactly one succeeds.
 3. Paystack webhook with an invalid signature is rejected.

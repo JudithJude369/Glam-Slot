@@ -87,7 +87,7 @@ When a context file and the code disagree, trust the code, then fix the context 
 A task is never done just because the code was written. Before reporting completion:
 
 1. Run type check, lint and build. Read the output.
-2. Run the Playwright tests relevant to the change. Add one if the change affects a booking, payment or cancel/reschedule flow.
+2. Playwright is paused. Do not write or run Playwright tests until the owner says a separate test database exists. After each change, run npx tsc --noEmit and tests/db/verify-db.ts, then list the manual checks for the owner to do by hand.
 3. Database changes: use a new migration, check RLS, and confirm the double-booking constraint still holds.
 4. API changes: call the route with valid and invalid input. Zod must reject the invalid input.
 5. Payments and webhooks: test in Paystack test mode. Send the same webhook twice and confirm it is handled once.

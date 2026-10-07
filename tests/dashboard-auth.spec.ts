@@ -101,7 +101,7 @@ async function signInThroughTheForm(
 // race each other or the other files' dashboard tests.
 test.describe.configure({ mode: "serial" });
 
-test.describe("owner route protection", () => {
+test.describe.skip("owner route protection", () => {
   test("a signed-out visitor is redirected away from the dashboard", async ({
     request,
   }) => {

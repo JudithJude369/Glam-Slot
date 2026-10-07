@@ -65,6 +65,10 @@ let previousReminderSettings: Record<string, unknown> | null = null;
 
 const OWNER_COLUMNS = ["id", "user_id", "created_at", "updated_at"] as const;
 
+// created_at and updated_at are restored too, so the run leaves the real
+// settings rows exactly as it found them. An update cannot do that: the
+// touch_updated_at trigger overwrites updated_at on every write, which is why
+// the cleanup puts these two rows back by deleting and re-inserting them.
 const SETTINGS_COLUMNS = [
   "name",
   "address",
@@ -75,6 +79,8 @@ const SETTINGS_COLUMNS = [
   "booking_window_days",
   "cancel_cutoff_hours",
   "hold_minutes",
+  "created_at",
+  "updated_at",
 ] as const;
 
 const REMINDER_SETTINGS_COLUMNS = [
@@ -84,6 +90,8 @@ const REMINDER_SETTINGS_COLUMNS = [
   "reminder_24h_hours_before",
   "reminder_2h_enabled",
   "reminder_2h_hours_before",
+  "created_at",
+  "updated_at",
 ] as const;
 
 function pickColumns(
@@ -989,7 +997,10 @@ async function run(): Promise<void> {
       owner,
       "update",
       "reminder_settings",
-      { row: { reminder_24h_hours_before: 30 } },
+      {
+        row: { reminder_24h_hours_before: 30 },
+        filters: [{ column: "id", value: 1 }],
+      },
     );
     expectAllowed(
       "the owner updates reminder settings",
@@ -1174,7 +1185,13 @@ async function run(): Promise<void> {
   }
 
   if (previousSalonSettings) {
-    const ownerDeleteSettings = await attempt(owner, "delete", "salon_settings");
+    // Filtered on the id, like every other single-row write in this file:
+    // PostgREST refuses a delete with no WHERE clause and answers 21000. That
+    // check never ran before the seed migration, because salon_settings was
+    // empty, so the bug sat there unseen.
+    const ownerDeleteSettings = await attempt(owner, "delete", "salon_settings", {
+      filters: [{ column: "id", value: 1 }],
+    });
     expectAllowed("the owner deletes salon settings", ownerDeleteSettings);
 
     const ownerRestoreSettings = await attempt(owner, "insert", "salon_settings", {
@@ -1215,21 +1232,34 @@ async function run(): Promise<void> {
   }
 }
 
+// The two settings tables hold one row and it is real data now, so a restore
+// that silently matched nothing would leave the salon with no settings at all.
+// A throw here is caught in finish(), which records a failed check.
+async function restoreSingleRow(
+  table: string,
+  snapshot: Record<string, unknown>,
+  columns: readonly string[],
+): Promise<void> {
+  await admin.from(table).delete().eq("id", 1);
+  const restore = await admin.from(table).insert(pickColumns(snapshot, columns)).select();
+  if (restore.error) {
+    throw new Error(`${table} was not put back: ${restore.error.message}`);
+  }
+}
+
 async function cleanup(): Promise<void> {
   await wipeSeed();
   if (previousSalonSettings) {
-    await admin
-      .from("salon_settings")
-      .update(pickColumns(previousSalonSettings, SETTINGS_COLUMNS))
-      .eq("id", 1);
+    await restoreSingleRow("salon_settings", previousSalonSettings, SETTINGS_COLUMNS);
   } else {
     await admin.from("salon_settings").delete().eq("id", 1);
   }
   if (previousReminderSettings) {
-    await admin
-      .from("reminder_settings")
-      .update(pickColumns(previousReminderSettings, REMINDER_SETTINGS_COLUMNS))
-      .eq("id", 1);
+    await restoreSingleRow(
+      "reminder_settings",
+      previousReminderSettings,
+      REMINDER_SETTINGS_COLUMNS,
+    );
   } else {
     await admin.from("reminder_settings").delete().eq("id", 1);
   }

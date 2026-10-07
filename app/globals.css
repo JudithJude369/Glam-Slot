@@ -25,6 +25,7 @@
   --ring: var(--primary);
   --danger: #c0392b;
   --success: #1e7a5a;
+  --success-foreground: #ffffff;
   --success-bg: #e2f3eb;
   --warning: #b7791f;
   --warning-bg: #fdf0d5;
@@ -58,6 +59,7 @@
   --color-ring: var(--ring);
   --color-danger: var(--danger);
   --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-success-bg: var(--success-bg);
   --color-warning: var(--warning);
   --color-warning-bg: var(--warning-bg);
