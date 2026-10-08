@@ -12,16 +12,20 @@ import type { PublicSalonDetails } from "@/lib/public-salon";
 const desktopNavItems = [
   { label: "Home", href: "/" },
   { label: "About", href: "/about" },
-  { label: "Services", href: "/book" },
+  { label: "Services", href: "#featured-rituals" },
 ] as const;
 
 const mobileNavItems = [
   { label: "Home", href: "/" },
   { label: "About", href: "/about" },
-  { label: "Services", href: "/book" },
+  { label: "Services", href: "#featured-rituals" },
   { label: "Find us", href: "#visit" },
   { label: "Book Now", href: "/book" },
 ] as const;
+
+function landingSectionHref(pathname: string, section: string): string {
+  return pathname === "/" ? `#${section}` : `/#${section}`;
+}
 
 export function SiteHeader({ salon }: { salon: PublicSalonDetails }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -75,10 +79,14 @@ export function SiteHeader({ salon }: { salon: PublicSalonDetails }) {
         >
           {desktopNavItems.map((item) => {
             const active = pathname === item.href;
+            const href =
+              item.label === "Services"
+                ? landingSectionHref(pathname, "featured-rituals")
+                : item.href;
             return (
               <Link
                 key={item.label}
-                href={item.href}
+                href={href}
                 aria-current={active ? "page" : undefined}
                 className={
                   active
@@ -91,7 +99,7 @@ export function SiteHeader({ salon }: { salon: PublicSalonDetails }) {
             );
           })}
           <Link
-            href="#visit"
+            href={landingSectionHref(pathname, "visit")}
             className="flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Icon name="pin" className="size-4" />
@@ -113,7 +121,13 @@ export function SiteHeader({ salon }: { salon: PublicSalonDetails }) {
             {mobileNavItems.map((item) => (
               <li key={item.label}>
                 <Link
-                  href={item.href}
+                  href={
+                    item.label === "Services"
+                      ? landingSectionHref(pathname, "featured-rituals")
+                      : item.label === "Find us"
+                        ? landingSectionHref(pathname, "visit")
+                        : item.href
+                  }
                   onClick={() => setMenuOpen(false)}
                   className="flex min-h-11 items-center rounded-lg px-2 text-base font-medium text-foreground transition-colors hover:bg-muted"
                 >

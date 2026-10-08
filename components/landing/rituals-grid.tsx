@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ServiceCard } from "@/components/landing/service-card";
-import { VisitCard } from "@/components/landing/visit-card";
+import { InfoRow } from "@/components/landing/info-row";
 import type { PublicService } from "@/lib/public-content";
 import type { PublicSalonDetails } from "@/lib/public-salon";
 import { useState } from "react";
@@ -26,7 +26,7 @@ export function RitualsGrid({
           Featured rituals
         </h2>
         <Link
-          href="/book"
+          href="#featured-rituals"
           className="hidden text-sm font-medium text-primary underline underline-offset-4 lg:block"
         >
           All services
@@ -42,7 +42,7 @@ export function RitualsGrid({
             onSelect={() => setSelectedId(service.id)}
           />
         ))}
-        <VisitCard salon={salon} />
+        <InfoRow salon={salon} />
       </div>
     </section>
   );

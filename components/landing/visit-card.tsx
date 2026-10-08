@@ -6,8 +6,7 @@ import type { PublicSalonDetails } from "@/lib/public-salon";
 export function VisitCard({ salon }: { salon: PublicSalonDetails }) {
   return (
     <article
-      id="visit"
-      className="flex scroll-mt-24 flex-col gap-4 rounded-[20px] border border-border bg-card p-4 lg:hidden"
+      className="flex flex-col gap-4 rounded-[20px] border border-border bg-card p-4 lg:hidden"
     >
       <h3 className="font-serif text-lg text-card-foreground">Visit us</h3>
 

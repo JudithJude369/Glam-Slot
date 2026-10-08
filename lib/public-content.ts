@@ -10,12 +10,14 @@ const SERVICE_PHOTOS: Record<string, string> = {
   "Silk Blowout + Gloss": "/images/girl.jpg",
   "Spa Pedicure Deluxe": "/images/feet.jpg",
 };
+const DEFAULT_CARD_PHOTO = "/images/girl.jpg";
 
 export type PublicService = {
   id: string;
   name: string;
   duration: string;
   price: string;
+  priceKobo: number;
   deposit: string;
   photo: string;
 };
@@ -57,8 +59,9 @@ function toService(service: Service): PublicService {
     name: service.name,
     duration: formatMinutes(service.duration_minutes),
     price: formatKobo(service.price_kobo),
+    priceKobo: service.price_kobo,
     deposit: formatKobo(service.deposit_kobo),
-    photo: SERVICE_PHOTOS[service.name] ?? "/images/logo.jpg",
+    photo: SERVICE_PHOTOS[service.name] ?? DEFAULT_CARD_PHOTO,
   };
 }
 
@@ -67,7 +70,7 @@ function toStaff(staff: Staff): PublicStaff {
   return {
     id: staff.id,
     name: staff.name,
-    photo: staff.photo_url ?? "/images/logo.jpg",
+    photo: staff.photo_url ?? DEFAULT_CARD_PHOTO,
     roleDesktop: role,
     roleMobile: role,
     roleShort: role.split("•")[0]?.trim() || role,

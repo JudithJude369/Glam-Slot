@@ -87,7 +87,7 @@ every value in Settings.
 
 - [ ] Calendar by day
 - [ ] Drawer to view, cancel and add a booking
-- [ ] Sign-out button. The dashboard must include one. Until it exists there is no way to sign out except clearing the browser's site data.
+- [x] Sign-out button. The dashboard has a sign-out action in the desktop sidebar and mobile navigation.
 
 ### Phase 10: Release
 
@@ -98,9 +98,10 @@ every value in Settings.
 ## Current status
 
 - Phase: Phase 4 closed (seed, Services, Staff & hours, Reminders tabs, and the public pages now read from the database). Next: Phase 5, the booking flow — availability engine, then the booking page.
-- Last completed task: Phase 4's last item — Landing and About read `salon_settings`, `services` and `staff` from the database and `lib/sample-content.ts` was deleted. Verified `tsc` 0 errors, `lint` 0 errors, `build` ✓, `db:verify:test` 100/100, and 43 of 43 runnable Playwright tests pass (7 skipped because they write to a database and only run against `glamslot-test`).
+- Last completed task: Landing link, fallback-photo, active-service price and featured-service fixes built. Typecheck and build pass; lint has 0 errors and 4 warnings. Desktop browser checks verified the links, visit anchor, service count, image fallback, price and removed policy link. Next: owner checks changed links at mobile/tablet widths, then Phase 5.
+- Owner visual check: Landing matches its design at 375px, 768px and desktop; the hero layout is not to be changed.
 
-**Waiting on the owner:** nothing. The sign-out button was already committed in `91bc937` and wired to `signOut()` in `components/settings/owner-shell.tsx` (desktop form at line 94, mobile sheet form at line 164); the tracker's "next task" line was stale.
+**Waiting on the owner:** check the desktop Settings tabs, edit a staff profile, and change a staff member's hours in the signed-in dashboard. The sign-out button was already committed in `91bc937` and wired to `signOut()` in `components/settings/owner-shell.tsx` (desktop form at line 94, mobile sheet form at line 164); the tracker's "next task" line was stale.
 
 ## Decisions log
 
@@ -212,23 +213,22 @@ Written at the end of the 2026-10-08 session. Read this before starting the next
 
 ### Half-done
 
-- **Nobody has looked at any page.** Every check is a Playwright assertion or a DOM measurement. Screenshots from the last run are in `/tmp/kilo/landing-shots/` and `/tmp/kilo/about-shots/`, but those are gone on reboot. A human pass against the design images is still owed for Landing, About, Login and Settings.
-- **Every "Book Now" link 404s** because `/book` arrives in Phase 5. So does `/cancellation-policy`, and "Services", "All services" and "View services" all point at `/book`.
-- **The desktop "Find us" link does nothing.** It jumps to `#visit`, and that anchor only exists below 1024 pixels on both pages.
+- **A human design pass is still owed for About, Login and Settings.** The owner has compared Landing with its design at 375px, 768px and desktop and confirmed it matches.
+- **Every "Book Now" link 404s** because `/book` arrives in Phase 5.
 - **Page metadata is still the create-next-app default.** The browser title reads "Glam-Slot" on both pages, visible on the live site.
 - **RLS is proved on every table**, by 100 checks in `npm run db:verify:test`: all ten tables, three roles, every operation. What is still unproved is that the policies are *useful* against real data, which Phase 5 depends on.
 - **`/dashboard` itself does not exist.** The owner is redirected there on sign-in and lands on a 404 until Phase 9 builds the calendar. The `CalendarPage` spec is still missing too.
 - **There is owner identity in the tables now, and a catalogue beside it.** One Supabase Auth account holds the single `salon_owner` row, so `private.is_salon_owner()` returns true for a real request and the owner can sign in. The seed added the single `salon_settings` and `reminder_settings` rows, three services, three staff, three staff-to-service links and 21 opening-hours rows, so Phase 4 has real data to read and edit. Everything except the owner identity is placeholder content.
-- **Service photos are out of scope.** The owner's decision, 2026-10-08: no `photo_url` column, no migration, no upload, no photo field in the Services tab. The hardcoded name-to-file map in `lib/public-content.ts` stays as the only source, and `context/design/SettingsPage/spec.md` is not updated. Staff photos are unaffected — they already use `photo_url` on the `staff` table and the `PublicImage` wrapper handles external URLs.
-- **The desktop Landing hero is about 594px tall** against the ~500px estimate in the spec. Nothing is clipped.
+- **Service photos are out of scope.** The owner's decision, 2026-10-08: no `photo_url` column, migration, upload or photo field in the Services tab. The existing name-to-file map and `/images/girl.jpg` fallback in `lib/public-content.ts` supply card photos. `context/design/SettingsPage/spec.md` is not updated. Staff photos use the existing `photo_url` column and `PublicImage` wrapper.
+- **The desktop Landing hero is about 594px tall** against the spec's rough ~500px estimate. The owner compared the page at 375px, 768px and desktop and confirmed it matches; no hero change is requested.
 - **The pages are not in `app/(client)/`.** They sit at `app/page.tsx` and `app/about/page.tsx` because no route groups exist yet.
 
 ### Next, in order
 
-1. Phase 4: Landing and About read services, hours and team from the database; remove `lib/sample-content.ts`.
+1. Phase 5: the booking flow. `context/design/BookingPage/spec.md` exists; build from it.
 2. Then Phase 9, for `/dashboard` itself, which needs `context/design/CalendarPage/spec.md` first.
 
-Before starting Phase 4, read `context/architecture.md` for the auth rules and the existing `lib/supabase/server.ts` client.
+Before starting Phase 5, read `context/architecture.md` for the auth rules and the existing `lib/supabase/server.ts` client, and `context/project-overview.md` for the booking, deposit, cancel, reschedule and reminder rules.
 
 ## Blockers and open questions
 
@@ -240,13 +240,15 @@ Add anything waiting on the owner or on a provider (for example WhatsApp templat
 - `npm audit` reports high-severity `braces` advisories through `micatch`, `fast-glob` and `shadcn`, all dev-time CLI tooling. `npm audit fix --force` wants to install `shadcn@1.0.0`, a breaking change, so it was left alone. Worth a decision.
 - pgTAP is not coming. The owner's decision, 2026-10-03: no Docker on this machine. `npm run db:verify` is the database test suite instead, and any future check that needs `set local role` has to sign in as a real user.
 - The desktop About paragraph says "Founded by Amara" while the team table lists her as one of three staff. It is sample copy for now; reword before a real salon uses it. The owner has been told.
-- Four Landing link targets are not in the design and are guesses: "Services" and "All services" go to `/book`, "View services" goes to `/book`, and "Cancellation policy" goes to `/cancellation-policy`, a route that does not exist and is not in `project-overview.md`. "Contact" goes to the WhatsApp link. Say the word and they change.
+- The "Contact" link in the Landing footer goes to the WhatsApp link.
 - The desktop hero is about 594px tall against the ~500px estimate in the spec. Nothing is clipped; it is only taller.
 
 ## Session notes
 
 Add the newest note at the top. Keep each to 3 lines: what changed, what was verified, what is next.
 
+- 2026-10-08, Landing refinements built: Services links target Featured rituals, Find us targets the responsive visit content, the cancellation-policy link is removed, missing-photo cards use `girl.jpg`, hero pricing comes from the cheapest active service, and the first three active services are featured. Typecheck and build pass; lint has 0 errors and 4 pre-existing warnings. Desktop browser checks passed; mobile/tablet viewport validation remains for the owner. Next: continue Phase 5 using the existing BookingPage spec.
+- 2026-10-08, settings desktop controls built, waiting for owner check: tabs now switch the visible panel on desktop too; staff rows have Edit and Hours actions using the existing forms. Verified `npm run typecheck`, `npm run lint` (0 errors; 4 warnings) and `npm run build`. Next: owner checks both tabs and edits a staff profile and schedule in the signed-in desktop dashboard.
 - 2026-10-08, Phase 4 closed: the last item — Landing and About read `salon_settings`, `services` and `staff` from the database and `lib/sample-content.ts` was deleted. Wrote `lib/public-content.ts` (`getPublicServices`, `getPublicTeam`), `lib/public-salon.ts` (`getPublicSalonDetails`) and `lib/login-copy.ts`, and made `app/page.tsx` and `app/about/page.tsx` async server components that fetch before rendering. Photo mapping for services stays an explicit constant in `lib/public-content.ts` because the services table has no photo column and the design maps specific services to specific photos. The three breakpoint paragraphs, the tagline, the rating and the hero-from price stay as constants in `lib/public-salon.ts` because no Settings column stores them; the owner rewrites them before a real salon uses the site. Also consolidated the three settings test specs onto one shared `tests/public-data.ts` loader, moved the `glamslot-test` guard out of `global-setup.ts` and into each spec that writes to a database (it was blocking every Playwright run that pointed at the live project, which is exactly why the read-only landing/about specs could not run), and pinned the service/team names in the specs to the rows the page renders rather than to a stale import. Verified `tsc` 0 errors, `lint` 0 errors, `build` ✓, `db:verify:test` 100/100, and 43 of 43 runnable Playwright tests pass (7 skipped because they write to a database and only run against `glamslot-test`). Next: Phase 5, the booking flow.
 
 - 2026-10-05, Phase 4 seeded: `supabase/migrations/20261005120000_seed_salon_data.sql` writes the two settings rows, three services, three staff, three links and 21 hours rows, all with fixed uuids and `on conflict do nothing`, and the rows are live through the Data API because this machine has no Supabase CLI. Verified `typecheck`, `lint`, `build` and 48 Playwright tests pass, `db:verify` is 102 of 102 with the data in place, the anon key reads 1/3/3/3/21 rows, a second pass wrote nothing, and the two settings rows came back byte-identical after a run. Fixed two latent `db:verify` bugs that seeding made reachable, both unfiltered writes refused with `21000`. Next: the owner pushes the migration and replaces the placeholder salon details in Settings. Uncommitted: the migration, the script and this file.

@@ -7,7 +7,7 @@ const footerColumns = (salon: PublicSalonDetails) => [
   {
     title: "Visit",
     links: [
-      { label: "Services", href: "/book" },
+      { label: "Services", href: "/#featured-rituals" },
       { label: "About", href: "/about" },
       { label: "Book Now", href: "/book" },
     ],
@@ -15,7 +15,6 @@ const footerColumns = (salon: PublicSalonDetails) => [
   {
     title: "Help",
     links: [
-      { label: "Cancellation policy", href: "/cancellation-policy" },
       { label: "Contact", href: salon.whatsappHref },
     ],
   },

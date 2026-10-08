@@ -28,7 +28,13 @@ const desktopTrustItems = [
   { icon: "pin", textKey: "addressShort" },
 ] as const;
 
-export function Hero({ salon }: { salon: PublicSalonDetails }) {
+export function Hero({
+  salon,
+  fromPrice,
+}: {
+  salon: PublicSalonDetails;
+  fromPrice: string | null;
+}) {
   const city = salon.city;
   const rating = salon.rating;
   const reviews = salon.reviewCount;
@@ -78,7 +84,9 @@ export function Hero({ salon }: { salon: PublicSalonDetails }) {
           asChild
           className="h-[52px] w-full rounded-xl text-base font-medium md:hidden"
         >
-          <Link href="/book">Book Now — from {salon.heroFromPrice}</Link>
+          <Link href="/book">
+            {fromPrice ? `Book Now — from ${fromPrice}` : "Book Now"}
+          </Link>
         </Button>
 
         <div className="hidden flex-wrap gap-3 md:flex">
@@ -90,10 +98,12 @@ export function Hero({ salon }: { salon: PublicSalonDetails }) {
             variant="outline"
             className="h-12 rounded-xl border-border bg-card px-6 text-base font-medium text-foreground md:hidden lg:inline-flex"
           >
-            <Link href="/book">View services</Link>
+            <Link href="#featured-rituals">View services</Link>
           </Button>
           <Button asChild className="hidden h-12 rounded-xl px-6 text-base font-medium lg:inline-flex">
-            <Link href="/book">Book Now — from {salon.heroFromPrice}</Link>
+            <Link href="/book">
+              {fromPrice ? `Book Now — from ${fromPrice}` : "Book Now"}
+            </Link>
           </Button>
           <Button
             asChild
