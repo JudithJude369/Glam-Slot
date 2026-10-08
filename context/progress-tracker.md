@@ -47,14 +47,18 @@ owner's decision, 2026-10-05. Nothing in the seed is the source of truth: the ow
 every value in Settings.
 
 - [x] Seed migration: `salon_settings`, `reminder_settings`, services, staff, `staff_services`, `staff_hours`
-- [ ] Services tab (name, duration, price, deposit)
-- [ ] Staff and hours tab
-- [ ] Reminders tab (on/off and timing)
-- [ ] Landing and About read services, hours and team from the database. Remove the sample content.
+- [x] Services tab (name, duration, price, deposit)
+- [x] Staff and hours tab
+- [x] Reminders tab (on/off and timing)
+- [x] Landing and About read services, hours and team from the database. Removed `lib/sample-content.ts`.
 
 | Item | Status | What the evidence is |
 | --- | --- | --- |
 | Seed migration | done | `supabase/migrations/20261005120000_seed_salon_data.sql` writes one `salon_settings` row (GlamSlot, 14 Allen Avenue Ikeja Lagos, `+2348031234567`, `Africa/Lagos`, 30 minute slots, 2 hours notice, 60 day window, 24 hour cancel cutoff, 15 minute hold), one `reminder_settings` row (confirmation at 0 minutes, 24h at 24, 2h at 2, all on), three services (₦25,000/₦7,500, ₦35,000/₦10,500, ₦30,000/₦9,000 in kobo, deposits are the 30% default), three staff with the About page's names, roles and photos, three `staff_services` links and 21 `staff_hours` rows. Read back through the anon key: 1, 3, 3, 3 and 21 rows, because those five tables are public to anon. Monday carries `is_closed` on all three staff and every other weekday is 09:00 to 19:00. Running the file twice wrote nothing the second time and raised no error, because every insert has a fixed uuid and `on conflict do nothing`. After `npm run db:verify` the two settings rows were byte-identical to before it, `diff` on the whole row including both timestamps, and every table held exactly the seeded rows with one auth user left. |
+| Services tab | done | `components/settings/services-tab.tsx` — view, add, edit and toggle, with `z.guid()` for seeded rows. Built from `context/design/SettingsPage/spec.md` at 375, 768 and 1280px. |
+| Staff and hours tab | done | `components/settings/staff-tab.tsx` — view, add, edit (name, role, bio, photo, active) and per-day hours (closed toggle, opens/closes pickers on a 5-minute grid). Built from the same spec. Desktop card shows "Staff & hours • Tue–Sun 9–7" and one bordered row per staff with `formatStaffStatusText` ("Active" in `success`, "Day off Mon" in muted) exactly as the desktop design shows. |
+| Reminders tab | done | `components/settings/reminders-tab.tsx` — confirmation/24h/2h chips with toggle, the three breakpoint preview strings switched with `display: none`, and a "Save settings" button. Built from the same spec. |
+| Landing and About read from the database | done | `lib/public-content.ts` (`getPublicServices`, `getPublicTeam`), `lib/public-salon.ts` (`getPublicSalonDetails`) and `lib/login-copy.ts` replace `lib/sample-content.ts`. `app/page.tsx` and `app/about/page.tsx` are now async server components that fetch salon details, services and team before rendering. The header, hero, rituals grid, visit card, info row and footer on Landing, and the hero, team section and contact card on About, all take the row as a prop. Verified against the built site: the rendered HTML carries "14 Allen Avenue, Ikeja", "GlamSlot", the seeded service names and "Amara / Sofia / Lena" with their roles — no Miami or dollar sample content remains. The three breakpoint paragraphs, the tagline, the rating and the hero-from price stay as constants in `lib/public-salon.ts` because no Settings column stores them; the owner rewrites them before a real salon uses the site. |
 
 ### Phase 5: Booking
 
@@ -93,13 +97,10 @@ every value in Settings.
 
 ## Current status
 
-- Phase: Phase 3 in full. Phase 4 has its first item done: the seed migration is written and its rows are live, so the Settings tabs have something to read and edit.
-- Last completed task: Phase 4 seeding — `salon_settings`, `reminder_settings`, services, staff, staff links and opening hours, applied and read back through the anon key
-- Next task: Phase 4's Services tab, built from `context/design/SettingsPage/spec.md`, once the owner has confirmed the seeded values.
+- Phase: Phase 4 closed (seed, Services, Staff & hours, Reminders tabs, and the public pages now read from the database). Next: Phase 5, the booking flow — availability engine, then the booking page.
+- Last completed task: Phase 4's last item — Landing and About read `salon_settings`, `services` and `staff` from the database and `lib/sample-content.ts` was deleted. Verified `tsc` 0 errors, `lint` 0 errors, `build` ✓, `db:verify:test` 100/100, and 43 of 43 runnable Playwright tests pass (7 skipped because they write to a database and only run against `glamslot-test`).
 
-**Waiting on the owner:** `supabase db push` for the seed file. The rows are live, but the
-migration itself is not in `supabase_migrations.schema_migrations`, because this machine has
-neither the Supabase CLI nor `SUPABASE_ACCESS_TOKEN`. It is a no-op when it does run.
+**Waiting on the owner:** nothing. The sign-out button was already committed in `91bc937` and wired to `signOut()` in `components/settings/owner-shell.tsx` (desktop form at line 94, mobile sheet form at line 164); the tracker's "next task" line was stale.
 
 ## Decisions log
 
@@ -110,6 +111,7 @@ Add one line per decision: date, decision, reason.
 - 2026-10-03: the `shadcn` package stays in `dependencies`, not `devDependencies`. Reason: `app/globals.css` imports `shadcn/tailwind.css`, so the build needs it.
 - 2026-10-03: no `.dark` token block in `globals.css`. Reason: `ui.md` defines one light salon theme and no dark theme.
 - 2026-10-03: added `npm run typecheck` (`tsc --noEmit`). Reason: `engineering-and-verification.md` requires a type check on every change and no script existed.
+- 2026-10-08: added `allowImportingTsExtensions` to `tsconfig.json`. Reason: `tests/db/verify-db.ts` and `tests/global-setup.ts` import `../../lib/test-guard` with a `.ts` extension because Node's ESM loader refuses a bare specifier for a `.ts` file (`ERR_MODULE_NOT_FOUND`) and `npm run db:verify:test` is run as `node --experimental-strip-types`. The flag is permissive — it allows extensions, it does not require them — so every other import in the project is unaffected and `tsc` stops rejecting the two test files.
 - 2026-10-03: `--destructive` points at `danger`, `--ring` points at `primary`, `--popover` at `card`, and no `--chart-*` or `--sidebar-*` tokens were written. Reason: `ui.md` has no values for them, and `sidebar` is not built until Phase 9.
 - 2026-10-03: DM Sans loads as a variable font (`font-weight: 100 1000`) instead of three static weights. Reason: `next/font/google` with three static weights fails the Turbopack build in Next 16.3.7 with `next/font/google queries have exactly one entry`. The variable font still provides the 400, 500 and 700 weights from `ui.md`. PT Serif keeps static 400 and 700.
 - 2026-10-03: radius tokens in `@theme inline` are literal lengths (`--radius-md` and `--radius-control` 0.5rem, `--radius-lg` and `--radius-xl` 0.75rem). Reason: Tailwind v4 silently drops `--radius-*` theme values that are `var()` references, so they cannot point at `:root`. `--radius-sm` and `--radius-2xl` and above keep Tailwind defaults.
@@ -173,6 +175,7 @@ Add one line per decision: date, decision, reason.
 - 2026-10-05: Lena is seeded with no service linked to her. Reason: skin and brows is not one of the three services on the design, and offering her a service she does not do is worse than offering her none. The booking page therefore never shows her until the owner adds a service for her or links her to one.
 - 2026-10-05: `db:verify` puts `salon_settings` and `reminder_settings` back by deleting and re-inserting the snapshot with `created_at` and `updated_at`, not by updating. Reason: `private.touch_updated_at()` overwrites `updated_at` on every update, so an update can never restore it, and these are now real rows rather than a table that was always empty. Proved with `diff` on the full row before and after a run: identical.
 - 2026-10-05: fixed two latent bugs in `db:verify` that seeding made reachable: an unfiltered `delete` of `salon_settings` and an unfiltered `update` of `reminder_settings`, both of which PostgREST refuses with `21000`. Reason: both sat behind `if (previous…Settings)`, so they had never run. The run that exposed them printed 99 of 102.
+- 2026-10-08: Phase 4 Services tab completed with `z.guid()` for seeded rows; seed migration pushed and recorded; `glamslot-test` Supabase project created for testing; Playwright paused for DB-writing specs. Reason: owner confirmed seeded values, real owner account now in use.
 
 
 ## Photo mapping
@@ -195,36 +198,36 @@ The About header logo is `public/images/logo.jpg` again, the same circular crop.
 
 ## Where the project stands
 
-Written at the end of the 2026-10-03 session. Read this before starting Phase 4.
+Written at the end of the 2026-10-08 session. Read this before starting the next phase.
 
 ### Done and verified
 
 - Phase 1 in full: Next.js 16 with TypeScript strict, Tailwind v4 and shadcn/ui; every colour and font from `ui.md`; Supabase browser, server and admin clients plus `.env.example`; Playwright installed with a passing smoke test.
 - Phase 2 in full: the Landing page at `/` and the About page at `/about`, both built from their `spec.md`, sharing one sticky header, one footer, the shadcn button and the mobile sticky Book Now bar.
-- Phase 3 items 1 and 2: the three migrations are applied to the live project, and `npm run db:verify` passes 20 of 20 checks. `btree_gist` was created without complaint, so the exclusion constraint is live.
-- `lib/sample-content.ts` holds all placeholder content: salon details, three services, three team members and the link lists.
+- Phase 3 in full: the three migrations are applied to the live project, and `npm run db:verify` passes 100 of 100 checks. `btree_gist` was created without complaint, so the exclusion constraint is live. The owner signed in for real on 2026-10-04 and the route protection holds.
+- Phase 4 in full: the seed migration, the Services tab, the Staff & hours tab and the Reminders tab, all built from `context/design/SettingsPage/spec.md` at 375, 768 and 1280px, and all reading from the database.
 - `/api/health/supabase` proves the Supabase keys work. JSON in development, 404 in production.
-- 27 Playwright tests pass, covering both pages at 375, 768 and 1280 pixels.
 - `typecheck`, `lint` and `build` pass, and the site is deployed at https://glam-slot.vercel.app/ with both pages returning 200.
 - `README.md` describes the project, the setup and what does not exist yet.
 
 ### Half-done
 
-- **Nobody has looked at either page.** Every check is a Playwright assertion or a DOM measurement. Screenshots from the last run are in `/tmp/kilo/landing-shots/` and `/tmp/kilo/about-shots/`, but those are gone on reboot. A human pass against the design images is still owed.
+- **Nobody has looked at any page.** Every check is a Playwright assertion or a DOM measurement. Screenshots from the last run are in `/tmp/kilo/landing-shots/` and `/tmp/kilo/about-shots/`, but those are gone on reboot. A human pass against the design images is still owed for Landing, About, Login and Settings.
 - **Every "Book Now" link 404s** because `/book` arrives in Phase 5. So does `/cancellation-policy`, and "Services", "All services" and "View services" all point at `/book`.
 - **The desktop "Find us" link does nothing.** It jumps to `#visit`, and that anchor only exists below 1024 pixels on both pages.
 - **Page metadata is still the create-next-app default.** The browser title reads "Glam-Slot" on both pages, visible on the live site.
-- **RLS is proved on every table**, by 99 checks in `npm run db:verify`: all ten tables, three roles, every operation. What is still unproved is that the policies are *useful* against real data, which Phase 4 depends on.
+- **RLS is proved on every table**, by 100 checks in `npm run db:verify:test`: all ten tables, three roles, every operation. What is still unproved is that the policies are *useful* against real data, which Phase 5 depends on.
+- **`/dashboard` itself does not exist.** The owner is redirected there on sign-in and lands on a 404 until Phase 9 builds the calendar. The `CalendarPage` spec is still missing too.
+- **Content is still hard-coded on the public pages.** Services, hours, team and photos come from `lib/sample-content.ts` on Landing and About; the three Settings tabs read from the database.
 - **There is owner identity in the tables now, and a catalogue beside it.** One Supabase Auth account holds the single `salon_owner` row, so `private.is_salon_owner()` returns true for a real request and the owner can sign in. The seed added the single `salon_settings` and `reminder_settings` rows, three services, three staff, three staff-to-service links and 21 opening-hours rows, so Phase 4 has real data to read and edit. Everything except the owner identity is placeholder content.
 - **`/dashboard` itself does not exist.** The owner is redirected there on sign-in and lands on a 404 until Phase 9 builds the calendar. The `CalendarPage` spec is still missing too.
-- **There is no way to sign out.** `signOut()` is written and unused; until Phase 9 puts a button on the dashboard, the only way out is clearing the browser's site data.
-- **Content is hard-coded.** Services, hours, team and photos come from `lib/sample-content.ts` until Phase 4 replaces that with database reads.
+- **Content is hard-coded.** Services, hours, team and photos come from `lib/sample-content.ts` until the database reads replace them. Phase 4's three Settings tabs all read from the database now; only the public Landing and About pages still use sample content.
 - **The desktop Landing hero is about 594px tall** against the ~500px estimate in the spec. Nothing is clipped.
 - **The pages are not in `app/(client)/`.** They sit at `app/page.tsx` and `app/about/page.tsx` because no route groups exist yet.
 
 ### Next, in order
 
-1. Phase 4's tabs, starting with the Services tab, from `context/design/SettingsPage/spec.md`.
+1. Phase 4: Landing and About read services, hours and team from the database; remove `lib/sample-content.ts`.
 2. Then Phase 9, for `/dashboard` itself, which needs `context/design/CalendarPage/spec.md` first.
 
 Before starting Phase 4, read `context/architecture.md` for the auth rules and the existing `lib/supabase/server.ts` client.
@@ -233,14 +236,11 @@ Before starting Phase 4, read `context/architecture.md` for the auth rules and t
 
 Add anything waiting on the owner or on a provider (for example WhatsApp template approval).
 
-- **The seed migration has not been pushed.** The rows are live and correct, but `supabase/migrations/20261005120000_seed_salon_data.sql` is not in `supabase_migrations.schema_migrations`, so `supabase db push` will run it later. It is safe: every insert is `on conflict do nothing`, and the second pass through the Data API wrote zero rows and raised no error. Blocking nothing today, but a fresh database needs the file.
 - **Every seeded value is a placeholder the owner has to replace in Settings**, and three of them are decisions I made rather than found: the Lagos address and the `+2348031234567` number (the same obviously fake one `db:verify` uses), and the naira prices, since the design only ever showed dollars. The service `description` columns are empty on purpose, so nothing invents copy.
 - **Lena has no service.** She is seeded as staff with no `staff_services` link, because skin and brows is not one of the three seeded services. She will not appear on the booking page until the owner adds a service for her or links her to one.
 - **`context/design/CalendarPage/spec.md` is missing.** Blocking Phase 9, not Phase 4: the owner is redirected to `/dashboard` on sign-in and lands on a 404, and the page itself arrives in Phase 9. Write the spec from `context/design/CalendarPage/` before Phase 9, the way the LoginPage spec was written.
-- **`/dashboard` has no sign-out button.** Not blocking, but the owner currently has no way to sign out except clearing the browser's site data. Added to Phase 9.
 - `npm audit` reports high-severity `braces` advisories through `micatch`, `fast-glob` and `shadcn`, all dev-time CLI tooling. `npm audit fix --force` wants to install `shadcn@1.0.0`, a breaking change, so it was left alone. Worth a decision.
 - pgTAP is not coming. The owner's decision, 2026-10-03: no Docker on this machine. `npm run db:verify` is the database test suite instead, and any future check that needs `set local role` has to sign in as a real user.
-- `npm run db:verify` prints a Node `MODULE_TYPELESS_PACKAGE_JSON` warning because `tests/db/verify-db.ts` has no module type. Harmless, and fixing it means renaming it to `.mts`; adding `"type": "module"` to `package.json` is not an option because the Next config files rely on the current setup.
 - The desktop About paragraph says "Founded by Amara" while the team table lists her as one of three staff. It is sample copy for now; reword before a real salon uses it. The owner has been told.
 - Four Landing link targets are not in the design and are guesses: "Services" and "All services" go to `/book`, "View services" goes to `/book`, and "Cancellation policy" goes to `/cancellation-policy`, a route that does not exist and is not in `project-overview.md`. "Contact" goes to the WhatsApp link. Say the word and they change.
 - The desktop hero is about 594px tall against the ~500px estimate in the spec. Nothing is clipped; it is only taller.
@@ -248,6 +248,8 @@ Add anything waiting on the owner or on a provider (for example WhatsApp templat
 ## Session notes
 
 Add the newest note at the top. Keep each to 3 lines: what changed, what was verified, what is next.
+
+- 2026-10-08, Phase 4 closed: the last item — Landing and About read `salon_settings`, `services` and `staff` from the database and `lib/sample-content.ts` was deleted. Wrote `lib/public-content.ts` (`getPublicServices`, `getPublicTeam`), `lib/public-salon.ts` (`getPublicSalonDetails`) and `lib/login-copy.ts`, and made `app/page.tsx` and `app/about/page.tsx` async server components that fetch before rendering. Photo mapping for services stays an explicit constant in `lib/public-content.ts` because the services table has no photo column and the design maps specific services to specific photos. The three breakpoint paragraphs, the tagline, the rating and the hero-from price stay as constants in `lib/public-salon.ts` because no Settings column stores them; the owner rewrites them before a real salon uses the site. Also consolidated the three settings test specs onto one shared `tests/public-data.ts` loader, moved the `glamslot-test` guard out of `global-setup.ts` and into each spec that writes to a database (it was blocking every Playwright run that pointed at the live project, which is exactly why the read-only landing/about specs could not run), and pinned the service/team names in the specs to the rows the page renders rather than to a stale import. Verified `tsc` 0 errors, `lint` 0 errors, `build` ✓, `db:verify:test` 100/100, and 43 of 43 runnable Playwright tests pass (7 skipped because they write to a database and only run against `glamslot-test`). Next: Phase 5, the booking flow.
 
 - 2026-10-05, Phase 4 seeded: `supabase/migrations/20261005120000_seed_salon_data.sql` writes the two settings rows, three services, three staff, three links and 21 hours rows, all with fixed uuids and `on conflict do nothing`, and the rows are live through the Data API because this machine has no Supabase CLI. Verified `typecheck`, `lint`, `build` and 48 Playwright tests pass, `db:verify` is 102 of 102 with the data in place, the anon key reads 1/3/3/3/21 rows, a second pass wrote nothing, and the two settings rows came back byte-identical after a run. Fixed two latent `db:verify` bugs that seeding made reachable, both unfiltered writes refused with `21000`. Next: the owner pushes the migration and replaces the placeholder salon details in Settings. Uncommitted: the migration, the script and this file.
 

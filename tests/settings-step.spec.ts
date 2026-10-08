@@ -1,88 +1,10 @@
-import { readFileSync } from "node:fs";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { expect, test, type Page } from "@playwright/test";
-
-function loadEnvFile(): void {
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) return;
-  const contents = readFileSync(".env.local", "utf8");
-  for (const line of contents.split("\n")) {
-    const match = /^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY)=(.*)$/.exec(
-      line.trim(),
-    );
-    if (!match) continue;
-    const [, key, raw] = match;
-    if (process.env[key]) continue;
-    process.env[key] = raw.replace(/^["']|["']$/g, "");
-  }
-}
-
-function createAdminClient(): SupabaseClient {
-  loadEnvFile();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env.local",
-    );
-  }
-  return createClient(url, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-async function createUser(
-  admin: SupabaseClient,
-  label: string,
-): Promise<{ id: string; email: string; password: string }> {
-  const email = `glamslot-e2e-${label}-${Date.now()}@example.com`;
-  const password = crypto.randomUUID();
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (error || !data.user) {
-    throw new Error(`create ${label} user: ${error?.message ?? "no user"}`);
-  }
-  return { id: data.user.id, email, password };
-}
-
-async function claimOwnerRow(
-  admin: SupabaseClient,
-  userId: string,
-): Promise<() => Promise<void>> {
-  const existing = await admin.from("salon_owner").select("user_id").maybeSingle();
-  if (existing.error && existing.error.code !== "PGRST116") {
-    throw new Error(`read salon_owner: ${existing.error.message}`);
-  }
-  const previous = existing.data?.user_id ?? null;
-
-  const claim = previous
-    ? await admin.from("salon_owner").update({ user_id: userId }).eq("id", 1)
-    : await admin.from("salon_owner").insert({ user_id: userId });
-  if (claim.error) throw new Error(`claim salon_owner: ${claim.error.message}`);
-
-  return async () => {
-    const restore = previous
-      ? await admin.from("salon_owner").update({ user_id: previous }).eq("id", 1)
-      : await admin.from("salon_owner").delete().eq("id", 1);
-    if (restore.error) {
-      throw new Error(`restore salon_owner: ${restore.error.message}`);
-    }
-  };
-}
-
-async function signInThroughTheForm(
-  page: Page,
-  email: string,
-  password: string,
-): Promise<void> {
-  await page.goto("/login");
-  const form = page.locator("form:visible");
-  await form.locator('input[type="email"]').fill(email);
-  await form.locator('input[name="password"]').fill(password);
-  await form.getByRole("button", { name: /sign in/i }).click();
-}
+import { expect, test } from "@playwright/test";
+import {
+  claimOwnerRow,
+  createAdminClient,
+  signInThroughTheForm,
+  createUser,
+} from "./public-data";
 
 test.describe.configure({ mode: "serial" });
 
@@ -99,7 +21,27 @@ test.skip("step by step settings", async ({ page }) => {
     console.log("url ok");
 
     const tab = page.getByTestId("services-tab-desktop");
-    await expect(tab.getByText("Signature Gel Manicure")).toBeVisible({ timeout: 10000 });
+
+    // The first seeded service is visible. Its name is read back rather than
+    // pinned, because the owner edits services in Settings and a pinned name
+    // goes stale.
+    const seeded = await admin
+      .from("services")
+      .select("name")
+      .in(
+        "id",
+        [
+          "00000000-0000-0000-4000-00000000c001",
+          "00000000-0000-0000-4000-00000000c002",
+          "00000000-0000-0000-4000-00000000c003",
+        ],
+      )
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (seeded.error) throw new Error(`seeded service: ${seeded.error.message}`);
+    if (!seeded.data) throw new Error("no seeded service to assert on");
+    await expect(tab.getByText(seeded.data.name)).toBeVisible({ timeout: 10000 });
     console.log("service visible");
 
     await tab.getByRole("button", { name: /\+ add/i }).click();

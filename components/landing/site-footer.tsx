@@ -1,9 +1,29 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/landing/icon";
-import { footerColumns, salon } from "@/lib/sample-content";
+import type { PublicSalonDetails } from "@/lib/public-salon";
 
-export function SiteFooter() {
+const footerColumns = (salon: PublicSalonDetails) => [
+  {
+    title: "Visit",
+    links: [
+      { label: "Services", href: "/book" },
+      { label: "About", href: "/about" },
+      { label: "Book Now", href: "/book" },
+    ],
+  },
+  {
+    title: "Help",
+    links: [
+      { label: "Cancellation policy", href: "/cancellation-policy" },
+      { label: "Contact", href: salon.whatsappHref },
+    ],
+  },
+] as const;
+
+export function SiteFooter({ salon }: { salon: PublicSalonDetails }) {
+  const columns = footerColumns(salon);
+
   return (
     <footer className="mt-10 bg-plum md:mt-12">
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-8 px-5 py-10 md:flex-row md:justify-between md:px-6 md:py-12">
@@ -24,7 +44,7 @@ export function SiteFooter() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-10">
-          {footerColumns.map((column) => (
+          {columns.map((column) => (
             <div key={column.title} className="flex flex-col gap-2">
               <p className="text-sm font-medium text-white">{column.title}</p>
               <ul className="flex flex-col gap-2">

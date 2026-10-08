@@ -1,7 +1,7 @@
 import { TeamCard } from "@/components/about/team-card";
-import { team } from "@/lib/sample-content";
+import type { PublicStaff } from "@/lib/public-content";
 
-export function TeamSection() {
+export function TeamSection({ team }: { team: PublicStaff[] }) {
   return (
     <section aria-labelledby="meet-the-team">
       <h2

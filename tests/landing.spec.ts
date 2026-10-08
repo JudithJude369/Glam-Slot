@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { services } from "../lib/sample-content";
+import { getPublicServiceNames } from "./public-data";
 
 const viewports = [
   { name: "mobile", width: 375, height: 812, stickyBarVisible: true },
@@ -7,11 +7,19 @@ const viewports = [
   { name: "desktop", width: 1280, height: 900, stickyBarVisible: false },
 ];
 
+test.describe.configure({ mode: "serial" });
+
+let services: string[] = [];
+
+test.beforeAll(async () => {
+  services = await getPublicServiceNames();
+});
+
 for (const viewport of viewports) {
   test.describe(`landing at ${viewport.width}px`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test("shows the heading, the three services and a Book Now button", async ({
+    test("shows the heading, the services and a Book Now button", async ({
       page,
     }) => {
       const response = await page.goto("/");
@@ -23,7 +31,7 @@ for (const viewport of viewports) {
 
       for (const service of services) {
         await expect(
-          page.getByRole("heading", { level: 3, name: service.name }),
+          page.getByRole("heading", { level: 3, name: service }),
         ).toBeVisible();
       }
 
@@ -38,7 +46,6 @@ for (const viewport of viewports) {
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
       }));
-
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
     });
 
@@ -77,8 +84,12 @@ for (const viewport of viewports) {
 test("selecting a service moves the selected state", async ({ page }) => {
   await page.goto("/");
 
-  const first = page.getByRole("article").filter({ hasText: services[0].name });
-  const second = page.getByRole("article").filter({ hasText: services[1].name });
+  if (services.length < 2) {
+    test.skip();
+  }
+
+  const first = page.getByRole("article").filter({ hasText: services[0] });
+  const second = page.getByRole("article").filter({ hasText: services[1] });
 
   await expect(first.getByRole("button", { name: "Selected" })).toBeVisible();
   await expect(second.getByRole("button", { name: "Select" })).toBeVisible();

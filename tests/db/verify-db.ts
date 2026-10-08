@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { assertTestDatabase } from "../../lib/test-guard";
+import { assertTestDatabase } from "../../lib/test-guard.ts";
 
 assertTestDatabase(process.env.NEXT_PUBLIC_SUPABASE_URL);
 

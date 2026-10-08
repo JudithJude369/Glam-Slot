@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { aboutHero, team } from "../lib/sample-content";
+import { getPublicTeamNames } from "./public-data";
+
+const aboutHeading = "A little salon with a big heart.";
 
 const viewports = [
   { name: "mobile", width: 375, height: 812, stickyBarVisible: true },
@@ -7,22 +9,30 @@ const viewports = [
   { name: "desktop", width: 1280, height: 900, stickyBarVisible: false },
 ];
 
+test.describe.configure({ mode: "serial" });
+
+let team: string[] = [];
+
+test.beforeAll(async () => {
+  team = await getPublicTeamNames();
+});
+
 for (const viewport of viewports) {
   test.describe(`about at ${viewport.width}px`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test("shows the heading, the three team names and a Book Now button", async ({
+    test("shows the heading, the team names and a Book Now button", async ({
       page,
     }) => {
       const response = await page.goto("/about");
 
       expect(response?.status()).toBe(200);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-        aboutHero.heading,
+        aboutHeading,
       );
 
       for (const member of team) {
-        await expect(page.getByText(member.name, { exact: true })).toBeVisible();
+        await expect(page.getByText(member, { exact: true })).toBeVisible();
       }
 
       await expect(page.getByRole("link", { name: "Book Now" }).first()).toBeVisible();
@@ -36,7 +46,6 @@ for (const viewport of viewports) {
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
       }));
-
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
     });
 

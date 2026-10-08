@@ -1,5 +1,4 @@
 import { defineConfig, devices } from "@playwright/test";
-import { assertTestDatabase } from "./lib/test-guard";
 
 const baseURL = "http://localhost:3000";
 

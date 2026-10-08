@@ -1,7 +1,7 @@
 import { Metadata } from "next";
-import { getServices, getStaff, getStaffHours, getReminderSettings } from "@/lib/actions/settings";
+import { getServices, getStaffWithHours, getReminderSettings } from "@/lib/actions/settings";
 import { ServicesTabClient } from "@/components/settings/services-tab";
-import { StaffPanel } from "@/components/settings/staff-tab";
+import { StaffTabClient } from "@/components/settings/staff-tab";
 import { RemindersPanel } from "@/components/settings/reminders-tab";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 
@@ -11,8 +11,7 @@ export const metadata: Metadata = {
 
 export default async function SettingsPage() {
   const services = await getServices();
-  const staff = await getStaff();
-  const staffHours = await Promise.all(staff.map((s) => getStaffHours(s.id)));
+  const staffWithHours = await getStaffWithHours();
   const reminderSettings = await getReminderSettings();
 
   return (
@@ -32,7 +31,7 @@ export default async function SettingsPage() {
 
       <SettingsTabs
         servicesPanel={<ServicesTabClient services={services} />}
-        staffPanel={<StaffPanel staff={staff} staffHours={staffHours} />}
+        staffPanel={<StaffTabClient staffWithHours={staffWithHours} />}
         remindersPanel={<RemindersPanel settings={reminderSettings} />}
       />
     </div>

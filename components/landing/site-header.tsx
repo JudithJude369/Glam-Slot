@@ -7,14 +7,23 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/landing/icon";
-import {
-  desktopNavItems,
-  mobileNavItems,
-  photos,
-  salon,
-} from "@/lib/sample-content";
+import type { PublicSalonDetails } from "@/lib/public-salon";
 
-export function SiteHeader() {
+const desktopNavItems = [
+  { label: "Home", href: "/" },
+  { label: "About", href: "/about" },
+  { label: "Services", href: "/book" },
+] as const;
+
+const mobileNavItems = [
+  { label: "Home", href: "/" },
+  { label: "About", href: "/about" },
+  { label: "Services", href: "/book" },
+  { label: "Find us", href: "#visit" },
+  { label: "Book Now", href: "/book" },
+] as const;
+
+export function SiteHeader({ salon }: { salon: PublicSalonDetails }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -23,7 +32,7 @@ export function SiteHeader() {
       <div className="mx-auto flex h-[68px] w-full max-w-[1120px] items-center justify-between px-5 md:px-6 lg:h-[88px]">
         <Link href="/" className="flex items-center gap-2.5">
           <Image
-            src={photos.logo}
+            src="/images/logo.jpg"
             alt=""
             width={36}
             height={36}
@@ -35,7 +44,7 @@ export function SiteHeader() {
               {salon.name}
             </span>
             <span className="hidden text-xs text-muted-foreground lg:block">
-              {salon.tagline}
+              Nails • Hair • Glow
             </span>
           </span>
         </Link>

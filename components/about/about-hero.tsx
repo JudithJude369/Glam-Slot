@@ -2,14 +2,28 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/landing/icon";
-import { aboutHero, photos, salon } from "@/lib/sample-content";
+import type { PublicSalonDetails } from "@/lib/public-salon";
 
-export function AboutHero() {
+const aboutHero = {
+  eyebrow: "Our story",
+  heading: "A little salon with a big heart.",
+  paragraphs: {
+    mobile:
+      "GlamSlot is a boutique studio for nails, hair, skin and brows. Our three specialists, Amara, Sofia and Lena, bring years of focused craft to every appointment, with time set aside for each client so nothing feels rushed. Reserve your slot online and arrive to a calm, unhurried visit.",
+    tablet:
+      "GlamSlot is a boutique studio for nails, hair, skin and brows. Our three specialists, Amara, Sofia and Lena, bring years of focused craft to every appointment, with time set aside for each client so nothing feels rushed. Reserve your slot online and arrive to a calm, unhurried visit.",
+    desktop:
+      "GlamSlot is a boutique studio for nails, hair, skin and brows. Our three specialists, Amara, Sofia and Lena, bring years of focused craft to every appointment, with time set aside for each client so nothing feels rushed. Reserve your slot online and arrive to a calm, unhurried visit.",
+  },
+  imageAlt: "GlamSlot salon interior",
+} as const;
+
+export function AboutHero({ salon }: { salon: PublicSalonDetails }) {
   return (
     <section className="flex flex-col gap-6 md:grid md:grid-cols-2 md:items-center md:gap-8 lg:gap-12">
       <div className="relative aspect-[335/192] w-full overflow-hidden rounded-3xl md:aspect-[350/288] lg:aspect-[540/490] lg:rounded-[32px] lg:order-2">
         <Image
-          src={photos.aboutHero}
+          src="/images/dark-saloon.jpg"
           alt={aboutHero.imageAlt}
           fill
           priority

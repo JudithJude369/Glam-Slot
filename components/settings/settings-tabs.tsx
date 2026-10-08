@@ -24,6 +24,11 @@ export function SettingsTabs({
         {TABS.map((tab, idx) => (
           <button
             key={tab}
+            id={`settings-tab-${idx}`}
+            type="button"
+            role="tab"
+            aria-selected={idx === active}
+            aria-controls={`settings-panel-${idx}`}
             onClick={() => setActive(idx)}
             className={cn(
               "rounded-[16px] border px-5 py-2 text-[15px] font-medium transition-colors",
@@ -37,16 +42,13 @@ export function SettingsTabs({
         ))}
       </div>
 
-      {/* Mobile + tablet: single panel */}
-      <div className="mt-5 lg:hidden">{panel}</div>
-
-      {/* Desktop: two-column grid, always visible */}
-      <div className="mt-5 hidden lg:grid lg:grid-cols-2 lg:gap-5">
-        {servicesPanel}
-        <div className="flex flex-col gap-5">
-          {staffPanel}
-          {remindersPanel}
-        </div>
+      <div
+        id={`settings-panel-${active}`}
+        role="tabpanel"
+        aria-labelledby={`settings-tab-${active}`}
+        className="mt-5"
+      >
+        {panel}
       </div>
     </div>
   );

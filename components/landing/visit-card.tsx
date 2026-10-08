@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/landing/icon";
-import { salon } from "@/lib/sample-content";
+import type { PublicSalonDetails } from "@/lib/public-salon";
 
-export function VisitCard() {
+export function VisitCard({ salon }: { salon: PublicSalonDetails }) {
   return (
     <article
       id="visit"

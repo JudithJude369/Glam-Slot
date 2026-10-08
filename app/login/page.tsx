@@ -1,13 +1,14 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getOwner } from "@/lib/auth";
-import { loginCopy, photos, salon } from "@/lib/sample-content";
+import { loginCopy, loginPhotos } from "@/lib/login-copy";
+import { getPublicSalonDetails } from "@/lib/public-salon";
 import { LoginForm } from "./login-form";
 
 function Logo({ size, className }: { size: number; className?: string }) {
   return (
     <Image
-      src={photos.logo}
+      src={loginPhotos.logo}
       alt=""
       width={size}
       height={size}
@@ -21,6 +22,8 @@ function Logo({ size, className }: { size: number; className?: string }) {
 export default async function LoginPage() {
   const owner = await getOwner();
   if (owner.ok) redirect("/dashboard");
+
+  const salon = await getPublicSalonDetails();
 
   return (
     <main className="min-h-dvh bg-blush">
@@ -41,7 +44,7 @@ export default async function LoginPage() {
       <div className="hidden min-h-dvh grid-cols-2 md:grid lg:hidden">
         <div className="relative">
           <Image
-            src={photos.hero}
+            src={loginPhotos.hero}
             alt=""
             fill
             sizes="50vw"

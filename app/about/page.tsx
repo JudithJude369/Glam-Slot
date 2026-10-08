@@ -4,22 +4,29 @@ import { TeamSection } from "@/components/about/team-section";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { StickyBookBar } from "@/components/landing/sticky-book-bar";
+import { getPublicSalonDetails, type PublicSalonDetails } from "@/lib/public-salon";
+import { getPublicTeam } from "@/lib/public-content";
 
-const AboutPage = () => {
+export default async function AboutPage() {
+  const [salon, team] = await Promise.all([
+    getPublicSalonDetails(),
+    getPublicTeam(),
+  ]);
+
   return (
     <div className="flex min-h-full flex-col">
-      <SiteHeader />
+      <SiteHeader salon={salon} />
       <main className="mx-auto w-full max-w-[1120px] flex-1 px-5 pb-[100px] pt-5 md:px-6 md:pb-0 md:pt-6">
         <div className="flex flex-col gap-7 md:gap-10 lg:gap-16">
-          <AboutHero />
-          <TeamSection />
-          <ContactCard />
+          <AboutHero salon={salon} />
+          <TeamSection team={team} />
+          <ContactCard salon={salon} />
         </div>
       </main>
-      <SiteFooter />
+      <SiteFooter salon={salon} />
       <StickyBookBar />
     </div>
   );
-};
+}
 
-export default AboutPage;
+export type { PublicSalonDetails };

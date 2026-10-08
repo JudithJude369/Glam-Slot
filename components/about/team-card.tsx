@@ -1,13 +1,15 @@
-import Image from "next/image";
+import { PublicImage } from "@/components/public-image";
 import Link from "next/link";
-import type { TeamMember } from "@/lib/sample-content";
+import type { PublicStaff } from "@/lib/public-content";
 
-export function TeamCard({ member }: { member: TeamMember }) {
+export function TeamCard({ member }: { member: PublicStaff }) {
+  const altRole = member.roleDesktop.split("•")[0]?.trim() || member.roleDesktop;
+
   return (
     <article className="flex items-center gap-4 rounded-[22px] border border-border bg-card p-4 md:h-[150px] md:flex-col md:justify-center md:gap-2 md:p-4 md:text-center lg:h-[115px] lg:flex-row lg:items-center lg:gap-6 lg:p-6 lg:text-left">
-      <Image
+      <PublicImage
         src={member.photo}
-        alt={`${member.name}, ${member.roleDesktop.split(" • ")[0].toLowerCase()}`}
+        alt={`${member.name}, ${altRole.toLowerCase()}`}
         width={48}
         height={48}
         className="size-12 shrink-0 rounded-full object-cover md:size-16 lg:size-[65px]"

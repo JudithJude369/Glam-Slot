@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { loginCopy } from "@/lib/sample-content";
+import { loginCopy } from "@/lib/login-copy";
 import { signIn, type SignInState } from "./actions";
 
 type Variant = keyof typeof loginCopy.heading;

@@ -3,20 +3,41 @@ import Link from "next/link";
 import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/landing/icon";
-import {
-  badges,
-  desktopTrustItems,
-  heroParagraphs,
-  photos,
-  salon,
-} from "@/lib/sample-content";
+import type { PublicSalonDetails } from "@/lib/public-salon";
 
-export function Hero() {
+const heroParagraphs = {
+  mobile:
+    "Pick your ritual, hold your slot with a small deposit, get gentle WhatsApp reminders. No account needed.",
+  tablet:
+    "Choose your ritual, hold your slot with a deposit, get WhatsApp reminders.",
+  desktop:
+    "Choose your ritual, hold your slot with a small deposit, and let gentle WhatsApp reminders do the rest. No account needed.",
+} as const;
+
+const badges = {
+  mobile: (city: string, rating: string, reviews: string) =>
+    `${city} • Rated ${rating} by ${reviews} clients`,
+  tablet: (city: string, rating: string) => `${city} • ${rating} rated salon`,
+  desktop: (city: string, rating: string, reviews: string) =>
+    `${city} • ${rating} from ${reviews} reviews`,
+} as const;
+
+const desktopTrustItems = [
+  { icon: "shield", textKey: "cancellationShort" },
+  { icon: "chat", textKey: "chat" },
+  { icon: "pin", textKey: "addressShort" },
+] as const;
+
+export function Hero({ salon }: { salon: PublicSalonDetails }) {
+  const city = salon.city;
+  const rating = salon.rating;
+  const reviews = salon.reviewCount;
+
   return (
     <section className="overflow-hidden rounded-3xl border border-border bg-card md:grid md:min-h-[440px] md:grid-cols-[52fr_48fr] lg:min-h-[500px]">
       <div className="relative h-[208px] w-full md:col-start-2 md:row-start-1 md:h-full">
         <Image
-          src={photos.hero}
+          src="/images/saloon.jpg"
           alt="Inside the GlamSlot salon"
           fill
           priority
@@ -27,11 +48,11 @@ export function Hero() {
 
       <div className="flex flex-col justify-center gap-4 bg-blush p-5 md:col-start-1 md:row-start-1 md:p-8 md:text-left lg:p-12">
         <div className="flex flex-wrap gap-2">
-          <Badge>{badges.mobile}</Badge>
-          <Badge className="hidden md:inline-flex">{badges.tablet}</Badge>
+          <Badge>{badges.mobile(city, rating, reviews)}</Badge>
+          <Badge className="hidden md:inline-flex">{badges.tablet(city, rating)}</Badge>
           <Badge className="hidden lg:inline-flex">
             <Star className="size-3 fill-current" aria-hidden="true" />
-            {badges.desktop}
+            {badges.desktop(city, rating, reviews)}
           </Badge>
         </div>
 
@@ -91,11 +112,15 @@ export function Hero() {
         <ul className="hidden flex-wrap items-center gap-6 lg:flex">
           {desktopTrustItems.map((item) => (
             <li
-              key={item.text}
+              key={item.textKey}
               className="flex items-center gap-1.5 text-sm text-muted-foreground"
             >
               <Icon name={item.icon} className="size-4" />
-              {item.text}
+              {item.textKey === "addressShort"
+                ? salon.addressShort
+                : item.textKey === "cancellationShort"
+                  ? salon.cancellationShort
+                  : "WhatsApp reminders"}
             </li>
           ))}
         </ul>

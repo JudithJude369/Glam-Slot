@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/landing/icon";
-import { contact, salon } from "@/lib/sample-content";
+import type { PublicSalonDetails } from "@/lib/public-salon";
 
-export function ContactCard() {
+export function ContactCard({ salon }: { salon: PublicSalonDetails }) {
   return (
     <section id="visit" className="scroll-mt-24 lg:hidden">
       <div className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4 md:hidden">
@@ -29,7 +29,7 @@ export function ContactCard() {
       </div>
 
       <div className="hidden min-h-[85px] items-center justify-between gap-4 rounded-[20px] border border-border bg-card px-5 py-4 md:flex">
-        <p className="text-base text-foreground">{contact.strip}</p>
+        <p className="text-base text-foreground">{salon.visitLine}</p>
         <Button
           asChild
           className="h-12 shrink-0 rounded-xl bg-accent px-5 text-base font-medium text-accent-foreground hover:bg-accent/85"

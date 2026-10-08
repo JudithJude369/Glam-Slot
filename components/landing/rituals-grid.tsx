@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { ServiceCard } from "@/components/landing/service-card";
 import { VisitCard } from "@/components/landing/visit-card";
-import {
-  defaultSelectedServiceId,
-  services,
-} from "@/lib/sample-content";
+import type { PublicService } from "@/lib/public-content";
+import type { PublicSalonDetails } from "@/lib/public-salon";
 import { useState } from "react";
 
-export function RitualsGrid() {
-  const [selectedId, setSelectedId] = useState(defaultSelectedServiceId);
+export function RitualsGrid({
+  services,
+  salon,
+}: {
+  services: PublicService[];
+  salon: PublicSalonDetails;
+}) {
+  const [selectedId, setSelectedId] = useState(services[0]?.id ?? "");
 
   return (
     <section aria-labelledby="featured-rituals">
@@ -38,7 +42,7 @@ export function RitualsGrid() {
             onSelect={() => setSelectedId(service.id)}
           />
         ))}
-        <VisitCard />
+        <VisitCard salon={salon} />
       </div>
     </section>
   );

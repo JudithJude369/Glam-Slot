@@ -3,14 +3,14 @@
 import Image from "next/image";
 import { Check, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Service } from "@/lib/sample-content";
+import type { PublicService } from "@/lib/public-content";
 
 export function ServiceCard({
   service,
   selected,
   onSelect,
 }: {
-  service: Service;
+  service: PublicService;
   selected: boolean;
   onSelect: () => void;
 }) {
