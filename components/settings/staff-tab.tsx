@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronRight, Check, X, UserPlus } from "lucide-react";
 import { formatStaffHoursText, formatStaffRowText, formatStaffStatusText } from "@/lib/format";
 import { saveStaff, toggleStaff, saveStaffHours, type StaffFormData, type StaffHoursFormData } from "@/lib/actions/settings";
@@ -47,9 +48,11 @@ const defaultHours = (weekday: number): StaffHoursFormData => ({
 function StaffForm({
   staff,
   onClose,
+  onSaved,
 }: {
   staff?: Staff;
   onClose: () => void;
+  onSaved: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +79,7 @@ function StaffForm({
       if (result.error) {
         setError(result.error);
       } else {
+        onSaved();
         onClose();
       }
     });
@@ -165,10 +169,12 @@ function StaffHoursForm({
   staff,
   hours,
   onClose,
+  onSaved,
 }: {
   staff: Staff;
   hours: StaffHours[];
   onClose: () => void;
+  onSaved: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -191,6 +197,7 @@ function StaffHoursForm({
       if (result.error) {
         setError(result.error);
       } else {
+        onSaved();
         onClose();
       }
     });
@@ -272,19 +279,27 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [editingHours, setEditingHours] = useState<Staff | null>(null);
+  const router = useRouter();
+
+  // saveStaff and saveStaffHours call revalidatePath, which only refreshes
+  // server data on the next navigation. This client component keeps its
+  // initial staffWithHours prop, so without a refresh the list shows stale
+  // rows after a save — the reminders tab already calls router.refresh() for
+  // the same reason.
+  const onSaved = () => router.refresh();
 
   return (
     <div data-testid="staff-tab">
       {/* Mobile: stacked cards */}
       <div data-testid="staff-tab-mobile" className="space-y-2 lg:hidden">
         {staffWithHours.map((staff) => (
-          <Dialog key={staff.id} open={dialogOpen && (editingStaff?.id === staff.id || editingHours?.id === staff.id)} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditingStaff(null); setEditingHours(null); }}}>
+          <div key={staff.id} className="rounded-[22px] border border-border bg-card p-4">
             <div
               role="button"
               tabIndex={0}
               onClick={() => { setEditingStaff(staff); setDialogOpen(true); }}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setEditingStaff(staff); setDialogOpen(true); }}}
-              className="flex items-center justify-between rounded-[22px] border border-border bg-card p-4 active:bg-muted"
+              className="flex items-center justify-between"
             >
               <div>
                 <p className="text-[17px] font-medium text-foreground">
@@ -296,13 +311,49 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
               </div>
               <ChevronRight className="size-5 text-foreground" />
             </div>
-            <DialogContent className="max-w-[90vw]">
-              <DialogHeader>
-                <DialogTitle>Edit {staff.name}</DialogTitle>
-              </DialogHeader>
-              <StaffForm staff={staff} onClose={() => { setDialogOpen(false); setEditingStaff(null); }} />
-            </DialogContent>
-          </Dialog>
+
+            {/* Edit staff: name, role, bio, photo. */}
+            <Dialog open={dialogOpen && editingStaff?.id === staff.id} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditingStaff(null); }}}>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 h-[40px] w-full rounded-[14px] border border-border text-[14px] text-foreground"
+                  onClick={() => { setEditingStaff(staff); setEditingHours(null); setDialogOpen(true); }}
+                >
+                  Edit
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[90vw]">
+                <DialogHeader>
+                  <DialogTitle>Edit {staff.name}</DialogTitle>
+                </DialogHeader>
+                <StaffForm staff={staff} onSaved={onSaved} onClose={() => { setDialogOpen(false); setEditingStaff(null); }} />
+              </DialogContent>
+            </Dialog>
+
+            {/* Edit hours: opens/closes per day. */}
+            <Dialog open={dialogOpen && editingHours?.id === staff.id} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditingHours(null); }}}>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 h-[40px] w-full rounded-[14px] border border-border text-[14px] text-foreground"
+                  onClick={() => { setEditingHours(staff); setEditingStaff(null); setDialogOpen(true); }}
+                >
+                  Hours
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[90vw] max-h-[90vh]">
+                <DialogHeader>
+                  <DialogTitle>Hours for {staff.name}</DialogTitle>
+                </DialogHeader>
+                <StaffHoursForm staff={staff} hours={staff.hours} onSaved={onSaved} onClose={() => { setDialogOpen(false); setEditingHours(null); }} />
+              </DialogContent>
+            </Dialog>
+          </div>
         ))}
 
         {/* Add staff form mobile */}
@@ -319,7 +370,7 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
             <DialogHeader>
               <DialogTitle>Add staff</DialogTitle>
             </DialogHeader>
-            <StaffForm onClose={() => { setDialogOpen(false); setEditingStaff(null); }} />
+            <StaffForm onSaved={onSaved} onClose={() => { setDialogOpen(false); setEditingStaff(null); }} />
           </DialogContent>
         </Dialog>
       </div>
@@ -342,7 +393,7 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
               <DialogHeader>
                 <DialogTitle>Add staff</DialogTitle>
               </DialogHeader>
-              <StaffForm onClose={() => { setDialogOpen(false); setEditingStaff(null); }} />
+              <StaffForm onSaved={onSaved} onClose={() => { setDialogOpen(false); setEditingStaff(null); }} />
             </DialogContent>
           </Dialog>
         </div>
@@ -371,7 +422,7 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
                     <DialogHeader>
                       <DialogTitle>Edit {staff.name}</DialogTitle>
                     </DialogHeader>
-                    <StaffForm staff={staff} onClose={() => { setDialogOpen(false); setEditingStaff(null); }} />
+                    <StaffForm staff={staff} onSaved={onSaved} onClose={() => { setDialogOpen(false); setEditingStaff(null); }} />
                   </DialogContent>
                 </Dialog>
                 <Dialog open={dialogOpen && editingHours?.id === staff.id} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditingHours(null); }}}>
@@ -389,7 +440,7 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
                     <DialogHeader>
                       <DialogTitle>Hours for {staff.name}</DialogTitle>
                     </DialogHeader>
-                    <StaffHoursForm staff={staff} hours={staff.hours} onClose={() => { setDialogOpen(false); setEditingHours(null); }} />
+                    <StaffHoursForm staff={staff} hours={staff.hours} onSaved={onSaved} onClose={() => { setDialogOpen(false); setEditingHours(null); }} />
                   </DialogContent>
                 </Dialog>
                 <form action={toggleStaff.bind(null, staff.id, !staff.is_active)}>
@@ -463,6 +514,7 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
                       </DialogHeader>
                       <StaffForm
                         staff={staff}
+                        onSaved={onSaved}
                         onClose={() => {
                           setDialogOpen(false);
                           setEditingStaff(null);
@@ -501,6 +553,7 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
                       <StaffHoursForm
                         staff={staff}
                         hours={staff.hours}
+                        onSaved={onSaved}
                         onClose={() => {
                           setDialogOpen(false);
                           setEditingHours(null);
@@ -550,6 +603,7 @@ export function StaffTabClient({ staffWithHours }: { staffWithHours: Array<Staff
                 <DialogTitle>Add staff</DialogTitle>
               </DialogHeader>
               <StaffForm
+                onSaved={onSaved}
                 onClose={() => {
                   setDialogOpen(false);
                   setEditingStaff(null);
