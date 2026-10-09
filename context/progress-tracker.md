@@ -62,32 +62,37 @@ every value in Settings.
 
 ### Phase 5: Booking
 
-- [ ] Availability engine in `lib/availability`
-- [ ] Booking page (service, staff, date and time, name, WhatsApp number)
-- [ ] Slot hold and hold-expiry job
+- [x] Availability engine in `lib/availability`
+- [x] Booking page (service, staff, date and time, name, WhatsApp number)
+- [x] Slot hold and hold-expiry job
 
 ### Phase 6: Payments
 
-- [ ] Paystack transaction start and Pay deposit page
-- [ ] Webhook: signature check, amount check, idempotency
-- [ ] Late-payment and slot-taken handling
+- [x] Paystack transaction start and Pay deposit page
+- [x] Webhook: signature check, amount check, idempotency
+- [x] Late-payment and slot-taken handling
 
 ### Phase 7: Confirmation page
 
-- [ ] Token link and Confirmation page
-- [ ] Reschedule and cancel with the 24-hour rule enforced on the server
+- [x] Token link and Confirmation page
+- [x] Reschedule and cancel with the 24-hour rule enforced on the server
 
 ### Phase 8: WhatsApp reminders
 
-- [ ] Messaging interface and fake provider
-- [ ] Reminder scheduling and sending job
-- [ ] Real provider connected after template approval
+- [x] Messaging interface and fake provider (lib/messaging with Fake/WhatsApp providers, templates, variable builder)
+- [x] Reminder scheduling and sending job (/api/jobs/send-reminders with JOBS_SECRET, retries, skips for cancelled/expired)
+- [ ] Real provider connected after template approval (WhatsApp templates approved by Meta)
 
 ### Phase 9: Owner calendar
 
-- [ ] Calendar by day
-- [ ] Drawer to view, cancel and add a booking
+- [x] Calendar by day
+- [x] Drawer to view, cancel and add a booking
 - [x] Sign-out button. The dashboard has a sign-out action in the desktop sidebar and mobile navigation.
+
+| Item | Status | What the evidence is |
+| --- | --- | --- |
+| 1. Calendar by day | built, waiting for owner check | `app/dashboard/page.tsx` + `calendar-client.tsx` built from `context/design/CalendarPage/spec.md`. Day view only, at `/dashboard?date=YYYY-MM-DD` (Africa/Lagos days). Mobile plum band with title, "N bookings • ₦X deposits", chevrons and "+ Add"; Day/Week/Staff tabs with Week and Staff disabled. Tablet stylist columns ("time • name • status") and details card. Desktop hour-label column, per-stylist columns with paid (`blush` + `primary`/25 border), pending (warning tint) and dashed "+" cards. Details: card under the list on mobile, card right of the columns on tablet, side panel ≥1280px, Sheet drawer at 1024–1279px. Prev/next day chevrons, a date picker behind the title and the desktop "Day • Week" button, and a "Today" shortcut when the viewed day is not today. Skeleton while the day loads, "No bookings yet" empty state, closed-day state ( Mondays), `error.tsx` with a retry. `tsc` 0 errors, `lint` 0 errors, `build` ✓. |
+| 2. Drawer to view, cancel and add a booking | built, waiting for owner check | Server actions in `lib/actions/owner-bookings.ts`, each gated by `getOwner()` and Zod-validated. **Add booking** (walk-in rule): service, stylist, date, time, name, WhatsApp; `source=owner`, `deposit_kobo=0`, `status=confirmed`, no hold, no notice/window limits; inside-stylist-hours check; the exclusion constraint rejects overlaps with "That slot is already taken"; confirmation/24h/2h reminders queued like a client booking. **Cancel**: any time (owner overrides the 24h rule), skips pending reminders, deposit stays with the customer as salon credit, confirmation dialog first. **No-show**: only after the appointment starts (button disabled before, server re-checks), deposit forfeited, confirmation dialog first. **Reschedule**: any time, to any slot inside the stylist's hours, recalculates the pending 24h/2h reminder times, deposit carries over. "Message" is a `wa.me` link. No "Confirm payment" anywhere (Unclear 7). Verified by typecheck/lint/build/db:verify only — the four actions need a real sign-in to exercise. |
 
 ### Phase 10: Release
 
@@ -97,16 +102,22 @@ every value in Settings.
 
 ## Current status
 
-- Phase: Phase 4 closed (seed, Services, Staff & hours, Reminders tabs, and the public pages now read from the database). Next: Phase 5, the booking flow — availability engine, then the booking page.
-- Last completed task: Landing link, fallback-photo, active-service price and featured-service fixes built. Typecheck and build pass; lint has 0 errors and 4 warnings. Desktop browser checks verified the links, visit anchor, service count, image fallback, price and removed policy link. Next: owner checks changed links at mobile/tablet widths, then Phase 5.
+- Phase: Phase 9 built — the owner calendar lives at `/dashboard` (day view, per-stylist columns, details drawer/panel, owner add/cancel/no-show/reschedule actions). Only the real WhatsApp provider connection (Phase 8) and Phase 10 release items remain.
+- Last completed task: Phase 9 calendar — `lib/dates.ts` (Lagos helpers), `lib/actions/owner-bookings.ts` (four owner-gated server actions), `app/dashboard/page.tsx` (day data), `app/dashboard/calendar-client.tsx` (three breakpoints, drawer, add/reschedule/confirm/date-picker dialogs), `app/dashboard/error.tsx`, and the Settings page restored at `app/dashboard/settings/page.tsx` after the route move.
 - Owner visual check: Landing matches its design at 375px, 768px and desktop; the hero layout is not to be changed.
 
-**Waiting on the owner:** check the desktop Settings tabs, edit a staff profile, and change a staff member's hours in the signed-in dashboard. The sign-out button was already committed in `91bc937` and wired to `signOut()` in `components/settings/owner-shell.tsx` (desktop form at line 94, mobile sheet form at line 164); the tracker's "next task" line was stale.
+**Waiting on the owner:** sign in and check the calendar at 375px, 768px and desktop (1024px and ≥1280px): switch days with the chevrons, the picker and "Today"; open a booking (drawer at 1024–1279px, panel at ≥1280px); add a walk-in booking; cancel one; mark a no-show (button only works after the start time); reschedule one. Steps: sign in at `/login`, open `/dashboard`, try each action on a real booking. Also check `/dashboard/settings` still works after the route move.
 
 ## Decisions log
 
 Add one line per decision: date, decision, reason.
 
+- 2026-10-09: Phase 9 calendar built. Owner answers to the CalendarPage spec's Unclear items: (1) the owner overrides the 24h rule — cancel and reschedule work at any time through separate owner-gated server actions that never touch the customer endpoints; no-show only after the appointment starts, deposit forfeited; owner cancel keeps the deposit as salon credit for the customer; cancel and no-show ask for confirmation first. (2) "+ Add booking" creates a walk-in: service, stylist, date, time, name, WhatsApp (all required, Zod-validated), `source=owner`, `deposit_kobo=0`, `status=confirmed`, no hold, no 2h/60-day limits, double-booking constraint still applies, reminders queue as usual. (3) Day navigation: prev/next chevrons beside the title (in the mobile band), a date picker behind the title on mobile/tablet and behind the "Day • Week" button on desktop, the viewed day in the URL (`?date=`), a "Today" shortcut when not today, Day view only with Week/Staff disabled. (4) The sidebar "Today's deposits" card always means today in Africa/Lagos: deposits = sum of verified (succeeded) payments for bookings starting today, bookings = today's non-cancelled count, pending = today's pending_payment count, walk-ins count as bookings and add ₦0. Reason: the owner's answers, 2026-10-09; they follow the project-overview business rules.
+- 2026-10-09: the details panel is a side panel at ≥1280px and a right-side Sheet drawer at 1024–1279px (a `useSyncExternalStore` media query decides); mobile keeps the designed card under the list and tablet the card beside the columns. Reason: AGENTS.md and `ui.md` say booking details open in a drawer, and the spec's Unclear 6 assumed exactly this split.
+- 2026-10-09: the day view lists `pending_payment` and `confirmed` bookings only. Reason: the designs show no cancelled, expired, completed or no-show cards, and the reminders job already skips terminal statuses.
+- 2026-10-08: Phase 7 Confirmation page built at `/booking/[token]` from `context/design/ConfirmationPage/spec.md`. Token is 32 random bytes (64 hex chars), stored as SHA256 hash. Page validates token, shows success mark, heading with customer name, subtitle with WhatsApp notice, details card with service/date/code/balance. Responsive: mobile (success grid + sticky Manage bar), tablet (two cards, Add to calendar primary), desktop (two cards, footer). Add to calendar generates .ics file. Reschedule at `/api/booking/[id]/reschedule` enforces 24h server-side, redirects to `/book?reschedule=`. Cancel at `/api/booking/[id]/cancel` enforces 24h, marks cancelled, skips pending reminders. Paystack callback at `/booking/callback/[reference]` verifies payment status before redirecting to token page. Unclear items from spec: cancellation window uses 24h from project overview not 12h from design; active nav shows none; footer only on desktop; copy variants per breakpoint; route paths use token not booking ID. Reason: follows project overview business rules and spec.
+- 2026-10-08: Phase 5 booking flow built from `context/design/BookingPage/spec.md`. Assumed: stepper is progress indicator only (Continue always goes to Pay deposit); multiple services not supported (one service per booking); "Any available" staff selector exists at all sizes with chips under date; dates built from real availability not hardcoded; slots show all available at every size; hold time is 15 minutes per business rule; cancellation window uses 24h rule from project overview not 12h from design; form errors use "Please enter your name" and "Please enter a valid WhatsApp number"; no nav link active on booking pages; footer only on mobile/tablet; desktop stepper stays narrow left-aligned; copy variants stored in component state per breakpoint. Reason: built exactly what each design shows per AGENTS.md rule 7, unresolved items from spec's Unclear list resolved by following project overview business rules.
+- 2026-10-08: Paystack webhook built at `/api/paystack/webhook` with HMAC SHA512 signature verification on raw body, amount/currency check against booking deposit, idempotency via unique `paystack_reference`. Late payment handling: if hold expired and slot taken by another booking, payment recorded but booking `flagged` with reason "Slot was taken by another booking". Amount mismatch: payment marked `failed`, booking `flagged` with reason. Always returns 200 for valid events per Paystack requirements. Reason: follows `context/architecture.md` Payments section and project overview business rules for late payment and slot-taken handling.
 - 2026-10-03: shadcn set up with the shadcn CLI, `radix` base and `nova` preset, CSS variables on. Reason: components must come from the CLI, not by hand (`ui.md`). Colours are overwritten in Phase 1 item 2.
 - 2026-10-03: `clsx` and `tailwind-merge` not installed; `lib/utils.ts` re-exports `cn` from the `cn` package that shadcn 4.21 generates. Reason: that is the current shadcn output and it already covers both.
 - 2026-10-03: the `shadcn` package stays in `dependencies`, not `devDependencies`. Reason: `app/globals.css` imports `shadcn/tailwind.css`, so the build needs it.
@@ -207,37 +218,40 @@ Written at the end of the 2026-10-08 session. Read this before starting the next
 - Phase 2 in full: the Landing page at `/` and the About page at `/about`, both built from their `spec.md`, sharing one sticky header, one footer, the shadcn button and the mobile sticky Book Now bar.
 - Phase 3 in full: the three migrations are applied to the live project, and `npm run db:verify` passes 100 of 100 checks. `btree_gist` was created without complaint, so the exclusion constraint is live. The owner signed in for real on 2026-10-04 and the route protection holds.
 - Phase 4 in full: the seed migration, the Services tab, the Staff & hours tab and the Reminders tab, all built from `context/design/SettingsPage/spec.md` at 375, 768 and 1280px, and all reading from the database.
+- Phase 9 in full: the owner calendar at `/dashboard` (day view, per-stylist columns, details drawer/panel, owner add/cancel/no-show/reschedule server actions) and the sign-out button. Built from `context/design/CalendarPage/spec.md`.
 - `/api/health/supabase` proves the Supabase keys work. JSON in development, 404 in production.
 - `typecheck`, `lint` and `build` pass, and the site is deployed at https://glam-slot.vercel.app/ with both pages returning 200.
 - `README.md` describes the project, the setup and what does not exist yet.
 
 ### Half-done
 
-- **A human design pass is still owed for About, Login and Settings.** The owner has compared Landing with its design at 375px, 768px and desktop and confirmed it matches.
-- **Every "Book Now" link 404s** because `/book` arrives in Phase 5.
-- **Page metadata is still the create-next-app default.** The browser title reads "Glam-Slot" on both pages, visible on the live site.
-- **RLS is proved on every table**, by 100 checks in `npm run db:verify:test`: all ten tables, three roles, every operation. What is still unproved is that the policies are *useful* against real data, which Phase 5 depends on.
-- **`/dashboard` itself does not exist.** The owner is redirected there on sign-in and lands on a 404 until Phase 9 builds the calendar. The `CalendarPage` spec is still missing too.
+- **A human design pass is still owed for About, Login, Settings and the new Calendar.** The owner has compared Landing with its design at 375px, 768px and desktop and confirmed it matches.
+- **Every "Book Now" link 404s** because `/book` arrives in Phase 5. (The booking page is built but uncommitted.)
+- **Page metadata is still the create-next-app default** on the public pages. The browser title reads "Glam-Slot" there; the dashboard pages set their own titles.
+- **RLS is proved on every table**, by 101 checks in `npm run db:verify:test`: all ten tables, three roles, every operation. What is still unproved is that the policies are *useful* against real data.
 - **There is owner identity in the tables now, and a catalogue beside it.** One Supabase Auth account holds the single `salon_owner` row, so `private.is_salon_owner()` returns true for a real request and the owner can sign in. The seed added the single `salon_settings` and `reminder_settings` rows, three services, three staff, three staff-to-service links and 21 opening-hours rows, so Phase 4 has real data to read and edit. Everything except the owner identity is placeholder content.
 - **Service photos are out of scope.** The owner's decision, 2026-10-08: no `photo_url` column, migration, upload or photo field in the Services tab. The existing name-to-file map and `/images/girl.jpg` fallback in `lib/public-content.ts` supply card photos. `context/design/SettingsPage/spec.md` is not updated. Staff photos use the existing `photo_url` column and `PublicImage` wrapper.
 - **The desktop Landing hero is about 594px tall** against the spec's rough ~500px estimate. The owner compared the page at 375px, 768px and desktop and confirmed it matches; no hero change is requested.
-- **The pages are not in `app/(client)/`.** They sit at `app/page.tsx` and `app/about/page.tsx` because no route groups exist yet.
+- **The public pages are not in `app/(client)/`.** They sit at `app/page.tsx` and `app/about/page.tsx` because no route groups exist yet.
+- **The Phase 5–8 work is uncommitted.** The booking flow, payments, confirmation page, messaging and the calendar all sit in the working tree (staged and untracked) on top of `883e2ca`. The route restructure moved the owner pages out of `app/(owner)/` into `app/` and `app/dashboard/`.
 
 ### Next, in order
 
-1. Phase 5: the booking flow. `context/design/BookingPage/spec.md` exists; build from it.
-2. Then Phase 9, for `/dashboard` itself, which needs `context/design/CalendarPage/spec.md` first.
+1. Owner check of Phase 9: sign in, view the calendar at 375px, 768px, 1024px and ≥1280px, and exercise add / cancel / no-show / reschedule on a real booking.
+2. Commit the Phase 5–9 work once the owner check passes.
+3. Phase 8's last item: connect the real WhatsApp provider after Meta approves the templates.
+4. Phase 10: the paused Playwright flows, the 375px mobile pass on every page, production keys and deploy.
 
-Before starting Phase 5, read `context/architecture.md` for the auth rules and the existing `lib/supabase/server.ts` client, and `context/project-overview.md` for the booking, deposit, cancel, reschedule and reminder rules.
+Before the owner check, read `context/project-overview.md` for the booking, deposit, cancel, reschedule and reminder rules.
 
 ## Blockers and open questions
 
 Add anything waiting on the owner or on a provider (for example WhatsApp template approval).
 
+- **Bug found in the Paystack webhook (Phase 6), not yet fixed:** when a payment arrives after the hold expired and the slot was taken, `app/api/paystack/webhook/route.ts` sets `status: "flagged"`, but the `bookings.status` check constraint only allows `pending_payment, confirmed, completed, expired, cancelled, no_show`. The update would fail with `23514` and the webhook returns 500. Either the constraint needs `flagged` added (new migration) or the slot-taken case should keep `confirmed` with `flagged: true`. Needs a decision before the next payment test.
 - **Every seeded value is a placeholder the owner has to replace in Settings**, and three of them are decisions I made rather than found: the Lagos address and the `+2348031234567` number (the same obviously fake one `db:verify` uses), and the naira prices, since the design only ever showed dollars. The service `description` columns are empty on purpose, so nothing invents copy.
 - **Lena has no service.** She is seeded as staff with no `staff_services` link, because skin and brows is not one of the three seeded services. She will not appear on the booking page until the owner adds a service for her or links her to one.
-- **`context/design/CalendarPage/spec.md` is missing.** Blocking Phase 9, not Phase 4: the owner is redirected to `/dashboard` on sign-in and lands on a 404, and the page itself arrives in Phase 9. Write the spec from `context/design/CalendarPage/` before Phase 9, the way the LoginPage spec was written.
-- `npm audit` reports high-severity `braces` advisories through `micatch`, `fast-glob` and `shadcn`, all dev-time CLI tooling. `npm audit fix --force` wants to install `shadcn@1.0.0`, a breaking change, so it was left alone. Worth a decision.
+- **`npm audit` reports high-severity `braces` advisories** through `micatch`, `fast-glob` and `shadcn`, all dev-time CLI tooling. `npm audit fix --force` wants to install `shadcn@1.0.0`, a breaking change, so it was left alone. Worth a decision.
 - pgTAP is not coming. The owner's decision, 2026-10-03: no Docker on this machine. `npm run db:verify` is the database test suite instead, and any future check that needs `set local role` has to sign in as a real user.
 - The desktop About paragraph says "Founded by Amara" while the team table lists her as one of three staff. It is sample copy for now; reword before a real salon uses it. The owner has been told.
 - The "Contact" link in the Landing footer goes to the WhatsApp link.
@@ -247,6 +261,8 @@ Add anything waiting on the owner or on a provider (for example WhatsApp templat
 
 Add the newest note at the top. Keep each to 3 lines: what changed, what was verified, what is next.
 
+- 2026-10-09, Phase 9 calendar built: `lib/dates.ts` (Lagos day boundaries, card times, ISO week, hour labels), `lib/actions/owner-bookings.ts` (create/cancel/no-show/reschedule server actions, owner-gated, Zod-validated, exclusion-constraint aware), `app/dashboard/page.tsx` + `calendar-client.tsx` (three breakpoints from the spec, day navigation in the URL, details drawer at 1024–1279px and side panel ≥1280px, add/reschedule/confirm/date-picker dialogs, skeleton/empty/closed/error states), `app/dashboard/error.tsx`, Settings page restored at `app/dashboard/settings/page.tsx` after the route move, sidebar deposits card fed from verified payments. Verified `tsc` 0 errors, `lint` 0 errors, `build` ✓, `db:verify:test` 101/101. Next: owner sign-in check of the calendar and the four actions, then Phase 10.
+- 2026-10-08, Phase 5 booking flow completed: availability engine in `lib/availability` calculates slots from staff hours, bookings, service duration and salon settings; `/book` page built from `context/design/BookingPage/spec.md` at 375/768/1440px with stepper, service cards, calendar, time slots, staff selector, details form, booking summary, mobile sticky bar; `/book/pay/[bookingId]` pay deposit page initializes Paystack; `/api/book` creates `pending_payment` booking with 15-min hold, handles double-booking via exclusion constraint, picks "any available" staff in transaction, returns slot-taken fallback; hold-expiry job at `/api/jobs/expire-holds`. Typecheck, lint (0 errors, 28 warnings), build, db:verify (100/100) all pass. Next: Phase 6 Paystack webhook and Confirmation page.
 - 2026-10-08, Landing refinements built: Services links target Featured rituals, Find us targets the responsive visit content, the cancellation-policy link is removed, missing-photo cards use `girl.jpg`, hero pricing comes from the cheapest active service, and the first three active services are featured. Typecheck and build pass; lint has 0 errors and 4 pre-existing warnings. Desktop browser checks passed; mobile/tablet viewport validation remains for the owner. Next: continue Phase 5 using the existing BookingPage spec.
 - 2026-10-08, settings desktop controls built, waiting for owner check: tabs now switch the visible panel on desktop too; staff rows have Edit and Hours actions using the existing forms. Verified `npm run typecheck`, `npm run lint` (0 errors; 4 warnings) and `npm run build`. Next: owner checks both tabs and edits a staff profile and schedule in the signed-in desktop dashboard.
 - 2026-10-08, Phase 4 closed: the last item — Landing and About read `salon_settings`, `services` and `staff` from the database and `lib/sample-content.ts` was deleted. Wrote `lib/public-content.ts` (`getPublicServices`, `getPublicTeam`), `lib/public-salon.ts` (`getPublicSalonDetails`) and `lib/login-copy.ts`, and made `app/page.tsx` and `app/about/page.tsx` async server components that fetch before rendering. Photo mapping for services stays an explicit constant in `lib/public-content.ts` because the services table has no photo column and the design maps specific services to specific photos. The three breakpoint paragraphs, the tagline, the rating and the hero-from price stay as constants in `lib/public-salon.ts` because no Settings column stores them; the owner rewrites them before a real salon uses the site. Also consolidated the three settings test specs onto one shared `tests/public-data.ts` loader, moved the `glamslot-test` guard out of `global-setup.ts` and into each spec that writes to a database (it was blocking every Playwright run that pointed at the live project, which is exactly why the read-only landing/about specs could not run), and pinned the service/team names in the specs to the rows the page renders rather than to a stale import. Verified `tsc` 0 errors, `lint` 0 errors, `build` ✓, `db:verify:test` 100/100, and 43 of 43 runnable Playwright tests pass (7 skipped because they write to a database and only run against `glamslot-test`). Next: Phase 5, the booking flow.
