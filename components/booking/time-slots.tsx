@@ -1,6 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
+
+const SALON_TIMEZONE = "Africa/Lagos";
 
 interface TimeSlot {
   start: string;
@@ -19,6 +23,7 @@ interface TimeSlotsProps {
   showTakenNotice?: boolean;
   takenSlotTime?: string;
   heldSlotTime?: string;
+  selectedDate?: string;
 }
 
 export function TimeSlots({
@@ -29,14 +34,19 @@ export function TimeSlots({
   showTakenNotice = false,
   takenSlotTime,
   heldSlotTime,
+  selectedDate,
 }: TimeSlotsProps) {
   const availableSlots = slots.filter((s) => s.isAvailable);
   const takenSlots = slots.filter((s) => !s.isAvailable);
 
+  const dateLabel = selectedDate
+    ? format(toZonedTime(new Date(`${selectedDate}T00:00:00`), SALON_TIMEZONE), "EEE, MMM d")
+    : "";
+
   return (
     <div className="space-y-3">
       <label className="block text-base font-medium text-foreground">
-        Available slots{slots.length > 0 ? ` — {slots[0]?.startDisplay.split(" ").slice(0, 3).join(" ")}` : ""}
+        Available slots{dateLabel ? ` — ${dateLabel}` : ""}
       </label>
       <div className={cn("grid gap-2", columns === 4 ? "grid-cols-4" : "grid-cols-3")}>
         {availableSlots.map((slot) => (

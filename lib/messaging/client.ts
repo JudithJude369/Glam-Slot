@@ -1,9 +1,10 @@
-import type { TemplateName, TemplateVariables } from "./templates";
+import type { TemplateName, TemplateVariables } from "./templates.ts";
 
 export interface SendMessageResult {
   success: boolean;
   providerMessageId?: string;
   error?: string;
+  simulated?: boolean;
 }
 
 export interface MessagingProvider {
@@ -14,37 +15,71 @@ export interface MessagingProvider {
   ): Promise<SendMessageResult>;
 }
 
+export interface SimulatedMessage {
+  id: string;
+  to: string;
+  templateName: TemplateName;
+  variables: Record<string, string>;
+  timestamp: Date;
+  direction: "outbound";
+  status: "simulated";
+}
+
 export class FakeMessagingProvider implements MessagingProvider {
-  private sentMessages: Array<{
-    to: string;
-    templateName: TemplateName;
-    variables: TemplateVariables[TemplateName];
-    timestamp: Date;
-  }> = [];
+  private sentMessages: SimulatedMessage[] = [];
 
   async sendTemplate(
     to: string,
     templateName: TemplateName,
     variables: TemplateVariables[TemplateName]
   ): Promise<SendMessageResult> {
-    this.sentMessages.push({
+    const message: SimulatedMessage = {
+      id: `fake_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       to,
       templateName,
-      variables,
+      variables: variables as Record<string, string>,
       timestamp: new Date(),
-    });
+      direction: "outbound",
+      status: "simulated",
+    };
+    this.sentMessages.push(message);
     return {
       success: true,
-      providerMessageId: `fake_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      providerMessageId: message.id,
+      simulated: true,
     };
   }
 
-  getSentMessages() {
-    return this.sentMessages;
+  getSentMessages(): SimulatedMessage[] {
+    return [...this.sentMessages].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }
+
+  getMessagesForPhone(phone: string): SimulatedMessage[] {
+    return this.sentMessages
+      .filter((m) => m.to === phone)
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }
+
+  getMessagesByTemplate(templateName: TemplateName): SimulatedMessage[] {
+    return this.sentMessages
+      .filter((m) => m.templateName === templateName)
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 
   clear() {
     this.sentMessages = [];
+  }
+
+  getStats() {
+    const byTemplate: Record<string, number> = {};
+    for (const msg of this.sentMessages) {
+      byTemplate[msg.templateName] = (byTemplate[msg.templateName] || 0) + 1;
+    }
+    return {
+      total: this.sentMessages.length,
+      byTemplate,
+      uniquePhones: new Set(this.sentMessages.map((m) => m.to)).size,
+    };
   }
 }
 
@@ -118,6 +153,7 @@ export class WhatsAppMessagingProvider implements MessagingProvider {
       return {
         success: true,
         providerMessageId: data.messages?.[0]?.id,
+        simulated: false,
       };
     } catch (error) {
       return {
@@ -128,23 +164,41 @@ export class WhatsAppMessagingProvider implements MessagingProvider {
   }
 }
 
-import { WHATSAPP_TEMPLATES } from "./templates";
+import { WHATSAPP_TEMPLATES } from "./templates.ts";
 
 let providerInstance: MessagingProvider | null = null;
+
+function isLiveModeEnabled(): boolean {
+  return process.env.WHATSAPP_LIVE_MODE === "true";
+}
 
 export function getMessagingProvider(): MessagingProvider {
   if (providerInstance) return providerInstance;
 
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const liveMode = isLiveModeEnabled();
 
-  if (accessToken && phoneNumberId) {
+  if (liveMode && accessToken && phoneNumberId) {
     providerInstance = new WhatsAppMessagingProvider(accessToken, phoneNumberId);
   } else {
+    if (liveMode && (!accessToken || !phoneNumberId)) {
+      console.warn(
+        "[WhatsApp] WHATSAPP_LIVE_MODE=true but credentials missing; falling back to FakeMessagingProvider"
+      );
+    }
     providerInstance = new FakeMessagingProvider();
   }
 
   return providerInstance;
+}
+
+export function getMessagingMode(): "live" | "fake" {
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const liveMode = isLiveModeEnabled();
+
+  return liveMode && accessToken && phoneNumberId ? "live" : "fake";
 }
 
 export function setMessagingProviderForTest(provider: MessagingProvider) {

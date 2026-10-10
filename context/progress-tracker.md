@@ -71,6 +71,7 @@ every value in Settings.
 - [x] Paystack transaction start and Pay deposit page
 - [x] Webhook: signature check, amount check, idempotency
 - [x] Late-payment and slot-taken handling
+- [x] Fixed `flagged` status constraint bug (migration `20261009120000_add_flagged_status.sql`)
 
 ### Phase 7: Confirmation page
 
@@ -81,7 +82,15 @@ every value in Settings.
 
 - [x] Messaging interface and fake provider (lib/messaging with Fake/WhatsApp providers, templates, variable builder)
 - [x] Reminder scheduling and sending job (/api/jobs/send-reminders with JOBS_SECRET, retries, skips for cancelled/expired)
-- [ ] Real provider connected after template approval (WhatsApp templates approved by Meta)
+- [x] **Safe live-mode gating** — `WHATSAPP_LIVE_MODE=true` env var required to enable real WhatsApp API calls; otherwise `FakeMessagingProvider` is used
+- [x] **Automated safety tests** — `tests/messaging.test.ts` (23 tests) proves testers cannot trigger real WhatsApp API calls while live sending is disabled
+- [ ] Real provider connected after template approval (WhatsApp templates approved by Meta) — **code complete, blocked on Meta**
+
+The `WhatsAppMessagingProvider` in `lib/messaging/client.ts` is fully implemented and will be used automatically when:
+1. `WHATSAPP_LIVE_MODE=true` is set in `.env.local`
+2. `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` are set in `.env.local`
+
+Until then, `FakeMessagingProvider` is used (logs messages to memory with `simulated: true` flag, fake_ prefixed IDs). The `getMessagingMode()` function returns `"live"` or `"fake"` for UI/debugging.
 
 ### Phase 9: Owner calendar
 
@@ -102,8 +111,8 @@ every value in Settings.
 
 ## Current status
 
-- Phase: Phase 9 built — the owner calendar lives at `/dashboard` (day view, per-stylist columns, details drawer/panel, owner add/cancel/no-show/reschedule actions). Only the real WhatsApp provider connection (Phase 8) and Phase 10 release items remain.
-- Last completed task: Phase 9 calendar — `lib/dates.ts` (Lagos helpers), `lib/actions/owner-bookings.ts` (four owner-gated server actions), `app/dashboard/page.tsx` (day data), `app/dashboard/calendar-client.tsx` (three breakpoints, drawer, add/reschedule/confirm/date-picker dialogs), `app/dashboard/error.tsx`, and the Settings page restored at `app/dashboard/settings/page.tsx` after the route move.
+- Phase: Phase 9 built — the owner calendar lives at `/dashboard` (day view, per-stylist columns, details drawer/panel, owner add/cancel/no-show/reschedule actions). Phase 6 Payments now fully complete with the `flagged` status fix. Only the real WhatsApp provider connection (Phase 8) and Phase 10 release items remain.
+- Last completed task: Phase 9 calendar — `lib/dates.ts` (Lagos helpers), `lib/actions/owner-bookings.ts` (four owner-gated server actions), `app/dashboard/page.tsx` (day data), `app/dashboard/calendar-client.tsx` (three breakpoints, drawer, add/reschedule/confirm/date-picker dialogs), `app/dashboard/error.tsx`, and the Settings page restored at `app/dashboard/settings/page.tsx` after the route move. Also fixed Paystack webhook `flagged` status constraint via migration `20261009120000_add_flagged_status.sql`.
 - Owner visual check: Landing matches its design at 375px, 768px and desktop; the hero layout is not to be changed.
 
 **Waiting on the owner:** sign in and check the calendar at 375px, 768px and desktop (1024px and ≥1280px): switch days with the chevrons, the picker and "Today"; open a booking (drawer at 1024–1279px, panel at ≥1280px); add a walk-in booking; cancel one; mark a no-show (button only works after the start time); reschedule one. Steps: sign in at `/login`, open `/dashboard`, try each action on a real booking. Also check `/dashboard/settings` still works after the route move.
@@ -248,7 +257,8 @@ Before the owner check, read `context/project-overview.md` for the booking, depo
 
 Add anything waiting on the owner or on a provider (for example WhatsApp template approval).
 
-- **Bug found in the Paystack webhook (Phase 6), not yet fixed:** when a payment arrives after the hold expired and the slot was taken, `app/api/paystack/webhook/route.ts` sets `status: "flagged"`, but the `bookings.status` check constraint only allows `pending_payment, confirmed, completed, expired, cancelled, no_show`. The update would fail with `23514` and the webhook returns 500. Either the constraint needs `flagged` added (new migration) or the slot-taken case should keep `confirmed` with `flagged: true`. Needs a decision before the next payment test.
+- **Paystack webhook `flagged` status constraint bug: FIXED** (2026-10-09). Added migration `20261009120000_add_flagged_status.sql` to include `flagged` in the `bookings.status` check constraint. Verified: `db:verify:test` 101/101 passes, `tsc` 0 errors, `lint` 0 errors, `build` ✓, end-to-end test of the flagged scenario works.
+- **WhatsApp real provider: BLOCKED on Meta template approval**. The `WhatsAppMessagingProvider` code is complete in `lib/messaging/client.ts` and will activate automatically when `WHATSAPP_LIVE_MODE=true` and credentials (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`) are added to `.env.local`. **Safety gating verified**: 23 automated tests in `tests/messaging.test.ts` prove testers cannot trigger real WhatsApp API calls while live sending is disabled. Currently using `FakeMessagingProvider` (returns `simulated: true`, fake_ prefixed IDs).
 - **Every seeded value is a placeholder the owner has to replace in Settings**, and three of them are decisions I made rather than found: the Lagos address and the `+2348031234567` number (the same obviously fake one `db:verify` uses), and the naira prices, since the design only ever showed dollars. The service `description` columns are empty on purpose, so nothing invents copy.
 - **Lena has no service.** She is seeded as staff with no `staff_services` link, because skin and brows is not one of the three seeded services. She will not appear on the booking page until the owner adds a service for her or links her to one.
 - **`npm audit` reports high-severity `braces` advisories** through `micatch`, `fast-glob` and `shadcn`, all dev-time CLI tooling. `npm audit fix --force` wants to install `shadcn@1.0.0`, a breaking change, so it was left alone. Worth a decision.
@@ -260,6 +270,10 @@ Add anything waiting on the owner or on a provider (for example WhatsApp templat
 ## Session notes
 
 Add the newest note at the top. Keep each to 3 lines: what changed, what was verified, what is next.
+
+- 2026-10-09, Phase 8 WhatsApp reminders hardened for safe testing/production: added `WHATSAPP_LIVE_MODE` env gate, `getMessagingMode()` helper, `simulated` flag on send results, and `tests/messaging.test.ts` (23 tests) proving testers cannot trigger real WhatsApp API calls while live mode is disabled. All checks pass: `tsc` 0 errors, `lint` 0 errors, `build` ✓, `db:verify:test` 101/101, messaging tests 23/23, Playwright booking/smoke tests 7/7. Phase 8 code complete, blocked only on Meta template approval. Next: owner sign-in check of Phase 9 calendar and four actions, then Phase 10.
+
+- 2026-10-09, Fixed Paystack webhook `flagged` status constraint bug: added migration `supabase/migrations/20261009120000_add_flagged_status.sql` to include `flagged` in the `bookings.status` check constraint. The webhook now correctly sets `status: "flagged"` when a payment succeeds but the slot was taken by another booking. Verified: `db:verify:test` 101/101 passes, `tsc` 0 errors, `lint` 0 errors, `build` ✓, end-to-end test of the flagged scenario works. Phase 6 Payments now fully complete. Next: owner sign-in check of Phase 9 calendar and four actions, then Phase 10.
 
 - 2026-10-09, Phase 9 calendar built: `lib/dates.ts` (Lagos day boundaries, card times, ISO week, hour labels), `lib/actions/owner-bookings.ts` (create/cancel/no-show/reschedule server actions, owner-gated, Zod-validated, exclusion-constraint aware), `app/dashboard/page.tsx` + `calendar-client.tsx` (three breakpoints from the spec, day navigation in the URL, details drawer at 1024–1279px and side panel ≥1280px, add/reschedule/confirm/date-picker dialogs, skeleton/empty/closed/error states), `app/dashboard/error.tsx`, Settings page restored at `app/dashboard/settings/page.tsx` after the route move, sidebar deposits card fed from verified payments. Also fixed a runtime-breaking route conflict: `app/api/booking/[token]` and `app/api/booking/[id]/…` used different dynamic-segment names at the same path level, which made every route 500 in `next start`; the token route moved into the `[id]` segment (URLs unchanged, the GET param holds the 64-char token). Verified `tsc` 0 errors, `lint` 0 errors (33 pre-existing warnings), `build` ✓, `db:verify:test` 101/101, and a booted-server smoke test (`/dashboard` and `/dashboard/settings` redirect to `/login`, landing and login 200). Next: owner sign-in check of the calendar and the four actions, then Phase 10.
 - 2026-10-08, Phase 5 booking flow completed: availability engine in `lib/availability` calculates slots from staff hours, bookings, service duration and salon settings; `/book` page built from `context/design/BookingPage/spec.md` at 375/768/1440px with stepper, service cards, calendar, time slots, staff selector, details form, booking summary, mobile sticky bar; `/book/pay/[bookingId]` pay deposit page initializes Paystack; `/api/book` creates `pending_payment` booking with 15-min hold, handles double-booking via exclusion constraint, picks "any available" staff in transaction, returns slot-taken fallback; hold-expiry job at `/api/jobs/expire-holds`. Typecheck, lint (0 errors, 28 warnings), build, db:verify (100/100) all pass. Next: Phase 6 Paystack webhook and Confirmation page.

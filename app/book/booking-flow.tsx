@@ -282,6 +282,7 @@ export function BookingFlow({ salon, services, staff }: BookingFlowProps) {
               showTakenNotice={showSlotTaken}
               takenSlotTime={takenSlotTime}
               heldSlotTime={heldSlotTime}
+              selectedDate={selectedDate}
             />
             {showSlotTaken && <SlotTakenNotice takenTime={takenSlotTime} heldTime={heldSlotTime} onDismiss={dismissSlotTaken} />}
             <DetailsForm
@@ -402,6 +403,7 @@ export function BookingFlow({ salon, services, staff }: BookingFlowProps) {
               selectedSlot={selectedSlot}
               onSlotSelect={handleSlotSelect}
               columns={3}
+              selectedDate={selectedDate}
             />
             <DetailsForm
               name={name}
@@ -472,8 +474,8 @@ export function BookingFlow({ salon, services, staff }: BookingFlowProps) {
             <div className="rounded-[24px] border bg-card p-6">
               <h3 className="font-serif text-xl font-semibold text-foreground">
                 {selectedStaffId === "any"
-                  ? `October 2026`
-                  : `October 2026 • with ${staff.find((s) => s.id === selectedStaffId)?.name || "Any available"}`}
+                  ? format(new Date(`${selectedDate}T00:00:00`), "MMMM yyyy")
+                  : `${format(new Date(`${selectedDate}T00:00:00`), "MMMM yyyy")} • with ${staff.find((s) => s.id === selectedStaffId)?.name || "Any available"}`}
               </h3>
               <DatePicker
                 selectedDate={selectedDate}
@@ -484,12 +486,13 @@ export function BookingFlow({ salon, services, staff }: BookingFlowProps) {
                 showArrows={false}
                 staffName={selectedStaffId !== "any" ? staff.find((s) => s.id === selectedStaffId)?.name : undefined}
               />
-              <TimeSlots
-                slots={availableSlots}
-                selectedSlot={selectedSlot}
-                onSlotSelect={handleSlotSelect}
-                columns={4}
-              />
+<TimeSlots
+              slots={availableSlots}
+              selectedSlot={selectedSlot}
+              onSlotSelect={handleSlotSelect}
+              columns={3}
+              selectedDate={selectedDate}
+            />
             </div>
           )}
         </div>
